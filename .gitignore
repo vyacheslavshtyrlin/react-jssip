@@ -1,0 +1,16 @@
+# Node dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment files
+.env
+.env.*
+
+# System files
+.DS_Store
+
+# Logs
+*.log
+yarn.lock

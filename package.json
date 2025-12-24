@@ -1,0 +1,21 @@
+{
+  "name": "sip-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build:react-jssip": "npm run build --workspace=react-jssip",
+    "dev:demo": "npm run dev --workspace=demo",
+    "build:demo": "npm run build --workspace=demo",
+    "build": "npm run build:react-jssip && npm run build:demo",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "private": true,
+  "workspaces": [
+    "react-jssip",
+    "demo"
+  ]
+}
