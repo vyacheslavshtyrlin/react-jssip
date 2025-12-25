@@ -4,15 +4,13 @@ import { SipStateStore } from "../core/sipStateStore";
 export function holdOtherSessions(
   state: SipStateStore,
   sessionId: string,
-  holdFn: (id: string) => void,
-  updateSession: (id: string, partial: Partial<SipSessionState>) => void
+  holdFn: (id: string) => void
 ) {
   const current = state.getState();
   current.sessions.forEach((s) => {
     if (s.id === sessionId) return;
     if (s.status === CallStatus.Active) {
       holdFn(s.id);
-      updateSession(s.id, { status: CallStatus.Hold });
     }
   });
 }

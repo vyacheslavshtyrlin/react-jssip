@@ -18,5 +18,4 @@ export declare class WebRTCSessionController {
     enableVideo(): void;
     disableVideo(): void;
     switchCamera(nextVideoTrack: MediaStreamTrack): Promise<boolean>;
-    startScreenShare(getDisplayMedia: () => Promise<MediaStream>): Promise<boolean>;
 }

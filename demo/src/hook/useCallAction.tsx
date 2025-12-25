@@ -1,4 +1,4 @@
-import { useSipActions } from "react-jssip";
+import { useSipActions } from "react-jssip-kit";
 import { useUserData } from "./useUserData";
 import { useMicrophoneContext } from "./useMicrophoneContext";
 import { toast } from "sonner";
@@ -7,8 +7,7 @@ export const useCallAction = () => {
   const { requestMicrophoneStream } = useMicrophoneContext();
 
   const { config } = useUserData();
-  const { call, answer, hangup, mute, unmute, hold, unhold, sendDTMF } =
-    useSipActions();
+  const { call, answer, hangup, toggleMute, toggleHold, sendDTMF } = useSipActions();
 
   const startCall = async (target: string) => {
     if (!target) return toast.error("Please enter a valid phone number");
@@ -57,10 +56,8 @@ export const useCallAction = () => {
     startCall,
     answerCall,
     hangupCall: hangup,
-    muteCall: mute,
-    unmuteCall: unmute,
-    holdCall: hold,
-    unholdCall: unhold,
+    toggleMuteCall: toggleMute,
+    toggleHoldCall: toggleHold,
     sendDTMF,
   };
 };

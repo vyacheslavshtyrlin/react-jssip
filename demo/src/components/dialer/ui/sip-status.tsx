@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { SipStatus } from 'react-jssip';
+import type { SipStatus } from 'react-jssip-kit';
 import { cva } from "class-variance-authority";
 
 const sipStatusVariants = cva("", {

@@ -66,8 +66,7 @@ export class SessionLifecycle {
       (id) => {
         const otherRtc = this.sessionManager.getRtc(id);
         otherRtc?.hold();
-      },
-      (id, partial) => upsertSessionState(this.state, id, partial)
+      }
     );
 
     const sdpHasVideo =

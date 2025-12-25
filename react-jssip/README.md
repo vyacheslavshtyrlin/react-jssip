@@ -1,11 +1,11 @@
-# react-jssip
+# react-jssip-kit
 
 React provider and hooks that wrap [JsSIP](https://jssip.net/) so you can manage SIP/WebRTC calls with idiomatic React state.
 
 ## Installation
 
 ```bash
-npm install react-jssip jssip
+npm install react-jssip-kit jssip
 ```
 
 Peer deps: `react@^18` and `react-dom@^18`.
@@ -20,7 +20,7 @@ import {
   useSipActions,
   createSipClientInstance,
   WebSocketInterface,
-} from "react-jssip";
+} from "react-jssip-kit";
 
 const client = createSipClientInstance();
 
@@ -32,7 +32,7 @@ client.connect("sip:alice@example.com", "supersecret", {
 
 function CallControls() {
   const { sessions, sipStatus } = useSipState();
-  const { call, hangup, mute, unmute } = useSipActions();
+  const { call, hangup, toggleMute } = useSipActions();
   const active = sessions[0];
 
   return (
@@ -40,8 +40,7 @@ function CallControls() {
       <div>Status: {sipStatus}</div>
       <button onClick={() => call("sip:bob@example.com")}>Call Bob</button>
       <button onClick={() => hangup(active?.id)}>Hang up</button>
-      <button onClick={() => mute(active?.id)}>Mute</button>
-      <button onClick={() => unmute(active?.id)}>Unmute</button>
+      <button onClick={() => toggleMute(active?.id)}>Toggle mute</button>
     </div>
   );
 }

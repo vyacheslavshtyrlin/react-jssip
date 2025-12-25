@@ -133,11 +133,4 @@ export class WebRTCSessionController {
     return true;
   }
 
-  public async startScreenShare(
-    getDisplayMedia: () => Promise<MediaStream>
-  ): Promise<boolean> {
-    const display = await getDisplayMedia();
-    const screen = display.getVideoTracks()[0];
-    return screen ? this.switchCamera(screen) : false;
-  }
 }

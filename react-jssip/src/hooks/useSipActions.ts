@@ -10,14 +10,10 @@ export function useSipActions() {
         client.answerSession(...args),
       hangup: (...args: Parameters<typeof client.hangupSession>) =>
         client.hangupSession(...args),
-      mute: (...args: Parameters<typeof client.muteSession>) =>
-        client.muteSession(...args),
-      unmute: (...args: Parameters<typeof client.unmuteSession>) =>
-        client.unmuteSession(...args),
-      hold: (...args: Parameters<typeof client.holdSession>) =>
-        client.holdSession(...args),
-      unhold: (...args: Parameters<typeof client.unholdSession>) =>
-        client.unholdSession(...args),
+      toggleMute: (...args: Parameters<typeof client.toggleMuteSession>) =>
+        client.toggleMuteSession(...args),
+      toggleHold: (...args: Parameters<typeof client.toggleHoldSession>) =>
+        client.toggleHoldSession(...args),
       sendDTMF: (...args: Parameters<typeof client.sendDTMFSession>) =>
         client.sendDTMFSession(...args),
       transfer: (...args: Parameters<typeof client.transferSession>) =>

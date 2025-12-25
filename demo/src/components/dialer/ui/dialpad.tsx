@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { SipStatus, useSipState } from 'react-jssip';
+import { SipStatus, useSipState } from 'react-jssip-kit';
 
 interface DialpadProps {
   onNumberClick: (number: string) => void;

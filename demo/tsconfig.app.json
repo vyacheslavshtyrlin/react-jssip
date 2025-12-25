@@ -11,7 +11,7 @@
       "@/*": [
         "./src/*"
       ],
-      "react-jssip": ["../react-jssip/dist/index.d.ts"]
+      "react-jssip-kit": ["../react-jssip/dist/index.d.ts"]
     },
     /* Bundler mode */
     "moduleResolution": "bundler",

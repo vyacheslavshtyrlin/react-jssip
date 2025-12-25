@@ -5,6 +5,7 @@ import { WebRTCSessionController } from "../sessionController";
 import { JsSIPEventMap } from "../types";
 import { EventTargetEmitter } from "../../core/eventEmitter";
 import { SipErrorPayload } from "../../core/sipErrorHandler";
+import { upsertSessionState } from "../sessionState";
 
 type Deps = {
   emitter: EventTargetEmitter<JsSIPEventMap>;
@@ -82,35 +83,19 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
 
     muted: () => {
       emitter.emit("muted", { sessionId, data: undefined });
-      state.batchSet({
-        sessions: state.getState().sessions.map((s) =>
-          s.id === sessionId ? { ...s, muted: true } : s
-        ),
-      });
+      upsertSessionState(state, sessionId, { muted: true });
     },
     unmuted: () => {
       emitter.emit("unmuted", { sessionId, data: undefined });
-      state.batchSet({
-        sessions: state.getState().sessions.map((s) =>
-          s.id === sessionId ? { ...s, muted: false } : s
-        ),
-      });
+      upsertSessionState(state, sessionId, { muted: false });
     },
     hold: () => {
       emitter.emit("hold", { sessionId, data: undefined as any });
-      state.batchSet({
-        sessions: state.getState().sessions.map((s) =>
-          s.id === sessionId ? { ...s, status: CallStatus.Hold } : s
-        ),
-      });
+      upsertSessionState(state, sessionId, { status: CallStatus.Hold });
     },
     unhold: () => {
       emitter.emit("unhold", { sessionId, data: undefined as any });
-      state.batchSet({
-        sessions: state.getState().sessions.map((s) =>
-          s.id === sessionId ? { ...s, status: CallStatus.Active } : s
-        ),
-      });
+      upsertSessionState(state, sessionId, { status: CallStatus.Active });
     },
 
     reinvite: (e: any) => emitter.emit("reinvite", { sessionId, data: e }),

@@ -1,4 +1,4 @@
-import { useSipSessions } from "react-jssip";
+import { useSipSessions } from "react-jssip-kit";
 import { PhoneIncoming, PhoneOutgoing, UserRound } from "lucide-react";
 import { CallStatusBadge } from "../../dialer/ui/call-status";
 

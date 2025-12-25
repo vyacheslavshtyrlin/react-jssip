@@ -8,7 +8,7 @@ import {
 } from "../ui/card";
 import { DialerCard } from "./ui/dialer-card";
 import { SipStatusBadge } from "./ui/sip-status";
-import { useSipState } from "react-jssip";
+import { useSipState } from "react-jssip-kit";
 
 function Dialer() {
   const { user } = useUserData();

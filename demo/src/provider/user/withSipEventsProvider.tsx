@@ -1,10 +1,10 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   useSipSessions,
   useSipEvent,
   useSipSessionEvent,
   CallPlayer,
-} from "react-jssip";
+} from "react-jssip-kit";
 import RingDialog from "@/components/ring-dialog";
 import { toast } from "sonner";
 
@@ -46,8 +46,14 @@ export default function withSipEventsProvider<P extends object>(
     const dialogOpen = sessions.some((s) => s.status !== "idle");
 
     useSipEvent("newRTCSession", (payload) => {
-      if (payload?.data?.originator === "remote" && payload.sessionId) {
-        setIncomingSession(payload.sessionId);
+      const sessionId =
+        (payload as any)?.sessionId ??
+        (payload as any)?.data?.session?.id ??
+        (payload as any)?.data?.id;
+      const originator = (payload as any)?.data?.originator;
+
+      if (originator === "remote" && sessionId) {
+        setIncomingSession(String(sessionId));
         playAudio(ringSound);
       }
     });

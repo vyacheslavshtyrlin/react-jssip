@@ -3,7 +3,7 @@ import { PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialpad } from "./dialpad";
-import { SipStatus, useSipState } from 'react-jssip';
+import { SipStatus, useSipState } from 'react-jssip-kit';
 import { useCallAction } from "@/hook/useCallAction";
 
 export const DialerCard = () => {

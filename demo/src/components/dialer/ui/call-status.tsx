@@ -1,4 +1,4 @@
-import type { CallStatus } from "react-jssip";
+import type { CallStatus } from "react-jssip-kit";
 import { cva } from "class-variance-authority";
 import { Badge } from "@/components/ui/badge";
 

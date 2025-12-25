@@ -5,7 +5,7 @@ import {
   SipStatus,
   CallStatus,
   CallDirection,
-} from "jssip-lib";
+} from "./jssip-lib";
 
 
 
@@ -34,6 +34,13 @@ import type {
   SipStatusType,
   CallDirectionType,
   CallStatusType,
-} from "jssip-lib"; // type (compile-time)
+} from "./jssip-lib"; // type (compile-time)
+import type { SipSessionState } from "./jssip-lib/core/types";
 
-export type { SipState, SipStatusType, CallDirectionType, CallStatusType };
+export type {
+  SipState,
+  SipSessionState,
+  SipStatusType,
+  CallDirectionType,
+  CallStatusType,
+};

@@ -31,7 +31,7 @@ import { SipStateStore } from "../core/sipStateStore";
 import { createUAHandlers } from "./handlers/uaHandlers";
 import { createSessionHandlers } from "./handlers/sessionHandlers";
 import { SessionManager } from "./sessionManager";
-import { holdOtherSessions, upsertSessionState, removeSessionState } from "./sessionState";
+import { upsertSessionState, removeSessionState } from "./sessionState";
 import { SessionLifecycle } from "./sessionLifecycle";
 
 type SipClientOptions = {
@@ -112,11 +112,11 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   public call(target: string, callOptions: CallOptions = {}) {
     try {
-      if (callOptions.mediaStream)
-        this.sessionManager.enqueueOutgoingMedia(callOptions.mediaStream);
+      const opts = this.ensureMediaConstraints(callOptions);
+      if (opts.mediaStream) this.sessionManager.enqueueOutgoingMedia(opts.mediaStream);
 
       const ua = this.userAgent.getUA();
-      ua?.call(target, callOptions);
+      ua?.call(target, opts);
     } catch (e: unknown) {
       const err = this.emitError(e, "CALL_FAILED", "call failed");
       this.cleanupAllSessions();
@@ -127,22 +127,20 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public answer(options: AnswerOptions = {}) {
-    return this.answerSession(undefined, options);
+    const sessionId = this.resolveSessionId();
+    if (!sessionId) return false;
+    return this.answerSession(sessionId, options);
   }
   public hangup(options?: TerminateOptions) {
-    return this.hangupSession(undefined, options);
+    const sessionId = this.resolveSessionId();
+    if (!sessionId) return false;
+    return this.hangupSession(sessionId, options);
   }
-  public mute() {
-    return this.muteSession();
+  public toggleMute() {
+    return this.toggleMuteSession();
   }
-  public unmute() {
-    return this.unmuteSession();
-  }
-  public hold() {
-    return this.holdSession();
-  }
-  public unhold() {
-    return this.unholdSession();
+  public toggleHold() {
+    return this.toggleHoldSession();
   }
   public sendDTMF(tones: string | number, options?: DTFMOptions) {
     const sessionId = this.resolveSessionId();
@@ -281,95 +279,53 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     return active?.id ?? sessions[0]?.id ?? null;
   }
 
-  public answerSession(
-    sessionIdOrOptions?: string | AnswerOptions,
-    options?: AnswerOptions
-  ) {
-    const sessionId =
-      typeof sessionIdOrOptions === "string"
-        ? sessionIdOrOptions
-        : this.resolveSessionId();
-    const opts =
-      typeof sessionIdOrOptions === "string"
-        ? options ?? {}
-        : (sessionIdOrOptions as AnswerOptions) ?? {};
+  private ensureMediaConstraints<T extends { mediaStream?: MediaStream; mediaConstraints?: MediaStreamConstraints }>(
+    opts: T
+  ): T {
+    if (opts.mediaStream || opts.mediaConstraints) return opts;
+    return { ...opts, mediaConstraints: { audio: true, video: false } } as T;
+  }
+
+  public answerSession(sessionId: string, options: AnswerOptions = {}) {
     if (!sessionId) return false;
-    holdOtherSessions(
-      this.stateStore,
-      sessionId,
-      (id) => {
-        const rtc = this.sessionManager.getRtc(id);
-        rtc?.hold();
-      },
-      (id, partial) => upsertSessionState(this.stateStore, id, partial)
-    );
+    const opts = this.ensureMediaConstraints(options);
     return this.sessionManager.answer(sessionId, opts);
   }
 
-  public hangupSession(
-    sessionIdOrOptions?: string | TerminateOptions,
-    options?: TerminateOptions
-  ) {
-    const sessionId =
-      typeof sessionIdOrOptions === "string"
-        ? sessionIdOrOptions
-        : this.resolveSessionId();
-    const opts =
-      typeof sessionIdOrOptions === "string"
-        ? options
-        : (sessionIdOrOptions as TerminateOptions | undefined);
+  public hangupSession(sessionId: string, options?: TerminateOptions) {
     if (!sessionId) return false;
-    return this.sessionManager.hangup(sessionId, opts);
+    return this.sessionManager.hangup(sessionId, options);
   }
 
-  public muteSession(sessionId?: string) {
+  public toggleMuteSession(sessionId?: string) {
     const resolved = this.resolveSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
       .sessions.find((s) => s.id === resolved);
-    if (sessionState?.muted) return true;
+    const muted = sessionState?.muted ?? false;
+    if (muted) {
+      this.sessionManager.unmute(resolved);
+      return true;
+    }
     this.sessionManager.mute(resolved);
-    upsertSessionState(this.stateStore, resolved, { muted: true });
     return true;
   }
 
-  public unmuteSession(sessionId?: string) {
+  public toggleHoldSession(sessionId?: string) {
     const resolved = this.resolveSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
       .sessions.find((s) => s.id === resolved);
-    if (!sessionState?.muted) return true;
-    this.sessionManager.unmute(resolved);
-    upsertSessionState(this.stateStore, resolved, { muted: false });
-    return true;
-  }
-
-  public holdSession(sessionId?: string) {
-    const resolved = this.resolveSessionId(sessionId);
-    if (!resolved) return false;
-    const sessionState = this.stateStore
-      .getState()
-      .sessions.find((s) => s.id === resolved);
+    const isOnHold = sessionState?.status === CallStatus.Hold;
+    if (isOnHold) {
+      this.sessionManager.unhold(resolved);
+      return true;
+    }
     if (sessionState?.status === CallStatus.Active) {
       this.sessionManager.hold(resolved);
-      upsertSessionState(this.stateStore, resolved, { status: CallStatus.Hold });
-    }
-    return true;
-  }
-
-  public unholdSession(sessionId?: string) {
-    const resolved = this.resolveSessionId(sessionId);
-    if (!resolved) return false;
-    const sessionState = this.stateStore
-      .getState()
-      .sessions.find((s) => s.id === resolved);
-    if (sessionState?.status === CallStatus.Hold) {
-      this.sessionManager.unhold(resolved);
-      upsertSessionState(this.stateStore, resolved, {
-        status: CallStatus.Active,
-      });
+      return true;
     }
     return true;
   }

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
-import { CallStatus, useSipActions, useSipState } from "react-jssip";
+import { CallStatus, useSipActions, useSipState } from "react-jssip-kit";
 import { Mic, MicOff, PhoneCall, PhoneOff, Smartphone } from "lucide-react";
 
 export const RingCardFooter = ({
@@ -21,10 +21,7 @@ export const RingCardFooter = ({
   const muted = current?.muted ?? false;
   const callStatus = current?.status ?? CallStatus.Idle;
 
-  const { answer, hangup, mute, unmute } = useSipActions();
-
-  const toggleMute = () =>
-    muted ? unmute(sessionId) : mute(sessionId);
+  const { answer, hangup, toggleMute } = useSipActions();
 
   const isActive = callStatus === CallStatus.Active;
 
