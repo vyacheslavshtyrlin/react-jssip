@@ -8,7 +8,7 @@ React provider and hooks that wrap [JsSIP](https://jssip.net/) so you can manage
 npm install react-jssip-kit jssip
 ```
 
-Peer deps: `react@^18` and `react-dom@^18`.
+Peer deps: `react >=18 <20` and `react-dom >=18 <20`.
 
 ## Quick start
 

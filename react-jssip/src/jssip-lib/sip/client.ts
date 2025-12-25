@@ -31,7 +31,7 @@ import { SipStateStore } from "../core/sipStateStore";
 import { createUAHandlers } from "./handlers/uaHandlers";
 import { createSessionHandlers } from "./handlers/sessionHandlers";
 import { SessionManager } from "./sessionManager";
-import { upsertSessionState, removeSessionState } from "./sessionState";
+import { removeSessionState } from "./sessionState";
 import { SessionLifecycle } from "./sessionLifecycle";
 
 type SipClientOptions = {
@@ -127,14 +127,14 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public answer(options: AnswerOptions = {}) {
-    const sessionId = this.resolveSessionId();
+    const sessionId = this.resolveExistingSessionId();
     if (!sessionId) return false;
     return this.answerSession(sessionId, options);
   }
-  public hangup(options?: TerminateOptions) {
-    const sessionId = this.resolveSessionId();
-    if (!sessionId) return false;
-    return this.hangupSession(sessionId, options);
+  public hangup(sessionId?: string, options?: TerminateOptions) {
+    const resolved = this.resolveExistingSessionId(sessionId);
+    if (!resolved) return false;
+    return this.hangupSession(resolved, options);
   }
   public toggleMute() {
     return this.toggleMuteSession();
@@ -143,7 +143,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     return this.toggleHoldSession();
   }
   public sendDTMF(tones: string | number, options?: DTFMOptions) {
-    const sessionId = this.resolveSessionId();
+    const sessionId = this.resolveExistingSessionId();
     return this.sendDTMFSession(tones, options, sessionId ?? undefined);
   }
   public transfer(target: string | RTCSession, options?: ReferOptions) {
@@ -279,6 +279,16 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     return active?.id ?? sessions[0]?.id ?? null;
   }
 
+  private sessionExists(sessionId: string) {
+    return !!this.sessionManager.getSession(sessionId) || !!this.sessionManager.getRtc(sessionId);
+  }
+
+  private resolveExistingSessionId(sessionId?: string) {
+    const id = this.resolveSessionId(sessionId);
+    if (!id) return null;
+    return this.sessionExists(id) ? id : null;
+  }
+
   private ensureMediaConstraints<T extends { mediaStream?: MediaStream; mediaConstraints?: MediaStreamConstraints }>(
     opts: T
   ): T {
@@ -287,18 +297,18 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public answerSession(sessionId: string, options: AnswerOptions = {}) {
-    if (!sessionId) return false;
+    if (!sessionId || !this.sessionExists(sessionId)) return false;
     const opts = this.ensureMediaConstraints(options);
     return this.sessionManager.answer(sessionId, opts);
   }
 
   public hangupSession(sessionId: string, options?: TerminateOptions) {
-    if (!sessionId) return false;
+    if (!sessionId || !this.sessionExists(sessionId)) return false;
     return this.sessionManager.hangup(sessionId, options);
   }
 
   public toggleMuteSession(sessionId?: string) {
-    const resolved = this.resolveSessionId(sessionId);
+    const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
@@ -313,7 +323,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public toggleHoldSession(sessionId?: string) {
-    const resolved = this.resolveSessionId(sessionId);
+    const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
@@ -335,7 +345,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     options?: DTFMOptions,
     sessionId?: string
   ) {
-    const resolved = this.resolveSessionId(sessionId);
+    const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
@@ -350,7 +360,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     options?: ReferOptions,
     sessionId?: string
   ) {
-    const resolved = this.resolveSessionId(sessionId);
+    const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
@@ -361,7 +371,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public attendedTransferSession(otherSession: RTCSession, sessionId?: string) {
-    const resolved = this.resolveSessionId(sessionId);
+    const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
       .getState()
@@ -372,10 +382,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public setSessionMedia(sessionId: string, stream: MediaStream) {
+    if (!this.sessionExists(sessionId)) return;
     this.sessionManager.setSessionMedia(sessionId, stream);
   }
 
   public switchCameraSession(sessionId: string, track: MediaStreamTrack) {
+    if (!this.sessionExists(sessionId)) return false;
     const rtc = this.sessionManager.getRtc(sessionId);
     return rtc ? rtc.switchCamera(track) : false;
   }
@@ -384,17 +396,20 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     sessionId: string,
     getDisplayMedia: () => Promise<MediaStream>
   ) {
+    if (!this.sessionExists(sessionId)) return false;
     return this.sessionManager.startScreenShare(sessionId, getDisplayMedia);
   }
 
 
   public enableVideoSession(sessionId: string) {
+    if (!this.sessionExists(sessionId)) return false;
     const rtc = this.sessionManager.getRtc(sessionId);
     rtc?.enableVideo();
     return !!rtc;
   }
 
   public disableVideoSession(sessionId: string) {
+    if (!this.sessionExists(sessionId)) return false;
     const rtc = this.sessionManager.getRtc(sessionId);
     rtc?.disableVideo();
     return !!rtc;

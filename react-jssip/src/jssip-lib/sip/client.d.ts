@@ -27,7 +27,7 @@ export declare class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     disconnect(): void;
     call(target: string, callOptions?: CallOptions): void;
     answer(options?: AnswerOptions): boolean;
-    hangup(options?: TerminateOptions): boolean;
+    hangup(sessionId?: string, options?: TerminateOptions): boolean;
     toggleMute(): boolean;
     toggleHold(): boolean;
     sendDTMF(tones: string | number, options?: DTFMOptions): void;
