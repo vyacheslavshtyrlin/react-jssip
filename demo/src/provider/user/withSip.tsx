@@ -3,7 +3,6 @@ import {
   createSipClientInstance,
   SipProvider,
   WebSocketInterface,
-  SipStatusType
 } from "react-jssip-kit";
 
 import { useEffect } from "react";

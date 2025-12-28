@@ -53,6 +53,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   private maxSessionCount = Infinity;
   private sessionManager = new SessionManager();
   private lifecycle: SessionLifecycle;
+  private unloadHandler?: () => void;
 
   public get state(): SipState {
     return this.stateStore.getState();
@@ -97,6 +98,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     const debug = this.debugPattern ?? cfgDebug;
     this.userAgent.start(uri, password, uaCfg, { debug });
     this.attachUAHandlers();
+    this.attachBeforeUnload();
   }
 
   public registerUA() {
@@ -104,6 +106,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public disconnect() {
+    this.detachBeforeUnload();
     this.detachUAHandlers();
     this.userAgent.stop();
     this.cleanupAllSessions();
@@ -136,6 +139,13 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     if (!resolved) return false;
     return this.hangupSession(resolved, options);
   }
+
+  public hangupAll(options?: TerminateOptions) {
+    const ids = this.getSessionIds();
+    ids.forEach((id) => this.hangupSession(id, options));
+    return ids.length > 0;
+  }
+  
   public toggleMute() {
     return this.toggleMuteSession();
   }
@@ -425,6 +435,24 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   public getSessions() {
     return this.sessionManager.getSessions();
+  }
+
+  private attachBeforeUnload() {
+    if (typeof window === "undefined" || this.unloadHandler) return;
+
+    const handler = () => {
+      this.hangupAll();
+      this.disconnect();
+    };
+
+    window.addEventListener("beforeunload", handler);
+    this.unloadHandler = handler;
+  }
+
+  private detachBeforeUnload() {
+    if (typeof window === "undefined" || !this.unloadHandler) return;
+    window.removeEventListener("beforeunload", this.unloadHandler);
+    this.unloadHandler = undefined;
   }
 }
 

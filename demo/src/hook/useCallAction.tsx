@@ -7,7 +7,8 @@ export const useCallAction = () => {
   const { requestMicrophoneStream } = useMicrophoneContext();
 
   const { config } = useUserData();
-  const { call, answer, hangup, toggleMute, toggleHold, sendDTMF } = useSipActions();
+  const { call, answer, hangup, toggleMute, toggleHold, sendDTMF } =
+    useSipActions();
 
   const startCall = async (target: string) => {
     if (!target) return toast.error("Please enter a valid phone number");
@@ -31,22 +32,12 @@ export const useCallAction = () => {
     }
   };
 
-  const answerCall = async () => {
+  const answerCall = async (sessionId: string) => {
     try {
       const mediaStream = await requestMicrophoneStream();
 
       const { pcConfig, extraHeaders } = config;
-      answer({
-        mediaStream,
-        pcConfig,
-        extraHeaders,
-        mediaConstraints: { audio: true, preferCurrentTab: true },
-        rtcOfferConstraints: {
-          offerToReceiveAudio: true,
-          iceRestart: true,
-          offerToReceiveVideo: false,
-        },
-      });
+      answer(sessionId, { mediaStream, pcConfig, extraHeaders });
     } catch (error) {
       console.error(error);
     }

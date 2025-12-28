@@ -7,8 +7,6 @@ import {
   CallDirection,
 } from "./jssip-lib";
 
-
-
 export * from "./context";
 
 export * from "./hooks/useSipState";
@@ -34,6 +32,11 @@ import type {
   SipStatusType,
   CallDirectionType,
   CallStatusType,
+  CallOptions,
+  AnswerOptions,
+  TerminateOptions,
+  SipConfiguration,
+
 } from "./jssip-lib"; // type (compile-time)
 import type { SipSessionState } from "./jssip-lib/core/types";
 
@@ -43,4 +46,8 @@ export type {
   SipStatusType,
   CallDirectionType,
   CallStatusType,
+  CallOptions,
+  AnswerOptions,
+  TerminateOptions,
+  SipConfiguration
 };
