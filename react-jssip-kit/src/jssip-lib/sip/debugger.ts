@@ -103,6 +103,26 @@ export class SipDebugger {
         debug: this.isEnabled(),
         text: this.isEnabled() ? "enabled" : "disabled",
       }),
+      sipState: () => {
+        try {
+          const getter = (win as any).sipState;
+          return typeof getter === "function"
+            ? getter()
+            : "sipState helper not available; ensure client debug is enabled";
+        } catch {
+          return "sipState helper not available";
+        }
+      },
+      sipSessions: () => {
+        try {
+          const getter = (win as any).sipSessions;
+          return typeof getter === "function"
+            ? getter()
+            : "sipSessions helper not available; ensure client debug is enabled";
+        } catch {
+          return "sipSessions helper not available";
+        }
+      },
     };
 
     try {

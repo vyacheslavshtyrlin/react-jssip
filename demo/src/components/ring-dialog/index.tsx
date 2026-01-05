@@ -1,53 +1,72 @@
-import { useEffect, useState } from "react";
-import { Dialog, DialogContent } from "../ui/dialog";
+import { Dialog, DialogContent, DialogFooter } from "../ui/dialog";
 import { RingCardContent } from "./ui/ring-card-contnet";
 import { RingCardFooter } from "./ui/ring-card-footer";
-import { Dialpad } from "../dialer/ui/dialpad";
-import { DTMF_TRANSPORT } from "jssip/lib/Constants";
-import { useSipActions, useSipSessions, useSipState } from "react-jssip-kit";
+import { CallStatus, useSipSessions } from "react-jssip-kit";
+import type { SipSessionState } from "react-jssip-kit";
 
 export default function RingDialog({ open }: { open: boolean }) {
-  const [dtmfMode, setDtmfMode] = useState(false);
-  const { sendDTMF } = useSipActions();
   const { sessions } = useSipSessions();
-  const activeSessionId =
-    sessions.find((s) => s.status === "active")?.id ?? null;
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
-    null
-  );
 
-  console.log(sessions);
+  const mockSessions: SipSessionState[] = [
+    {
+      id: "mock-1",
+      status: "dialing",
+      direction: "incoming",
+      from: "Alice",
+      to: "You",
+      muted: false,
+      acceptedAt: null,
+      mediaKind: "audio",
+      remoteVideoEnabled: false,
+    },
+    {
+      id: "mock-2",
+      status: CallStatus.Active,
+      direction: "outgoing",
+      from: "You",
+      to: "Bob",
+      muted: true,
+      acceptedAt: Date.now() - 60_000,
+      mediaKind: "audio",
+      remoteVideoEnabled: false,
+    },
 
-  useEffect(() => {
-    if (selectedSessionId) return;
-    if (activeSessionId) setSelectedSessionId(activeSessionId);
-    else if (sessions[0]) setSelectedSessionId(sessions[0].id);
-  }, [activeSessionId, sessions, selectedSessionId]);
+    {
+      id: "mock-3",
+      status: "ringing",
+      direction: "outgoing",
+      from: "You",
+      to: "WOW",
+      muted: true,
+      acceptedAt: Date.now() - 60_000,
+      mediaKind: "audio",
+      remoteVideoEnabled: false,
+    },
+  ];
+
+  const activeSessions = sessions.length > 0 ? sessions : mockSessions;
+  const hasSessions = activeSessions.length > 0;
 
   return (
-    <Dialog open={open}>
-      <DialogContent className="w-fit">
-        {dtmfMode ? (
-          <Dialpad
-            onNumberClick={(num) =>
-              sendDTMF(
-                num,
-                { transportType: DTMF_TRANSPORT.RFC2833 },
-                selectedSessionId || undefined
-              )
-            }
-          />
+    <Dialog open={true}>
+      <DialogContent className="w-full max-w-2xl space-y-4 bg-background">
+        {!hasSessions ? (
+          <RingCardContent session={null} />
         ) : (
-          <RingCardContent
-            selectedSessionId={selectedSessionId}
-            onSelect={setSelectedSessionId}
-          />
+          activeSessions.map((session) => {
+            return (
+              <div
+                key={session.id}
+                className="relative flex flex-col bg-white gap-3 rounded-xl border p-4"
+              >
+                <RingCardContent session={session} />
+                <DialogFooter className="w-full my-2 flex flex-row justify-around sm:justify-around">
+                  <RingCardFooter session={session} />
+                </DialogFooter>
+              </div>
+            );
+          })
         )}
-        <RingCardFooter
-          dtmfMode={dtmfMode}
-          setDtmfMode={setDtmfMode}
-          sessionId={selectedSessionId || undefined}
-        />
       </DialogContent>
     </Dialog>
   );

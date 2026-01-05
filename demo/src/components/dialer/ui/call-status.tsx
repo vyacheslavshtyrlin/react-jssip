@@ -21,11 +21,11 @@ export const callStatusVariants = cva(
 );
 
 const CallStatusRu: Record<CallStatus, string> = {
-  idle: "گ?گگٌگ?گّگ?گٌگç",
-  dialing: "گ?گ?گ?گَگ>‘?‘طگçگ?گٌگç",
-  ringing: "گ-گ?گ?گ?گ?گَ",
-  active: "گےگّگْگ?گ?گ?گ?‘?",
-  hold: "On hold",
+  idle: "...",
+  dialing: "Набор",
+  ringing: "Дозвон",
+  active: "Активен",
+  hold: "На удержании",
 };
 
 export function CallStatusBadge({ status }: { status: CallStatus }) {

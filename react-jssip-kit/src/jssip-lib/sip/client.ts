@@ -16,11 +16,7 @@ import {
   UAEventMap,
 } from "./types";
 
-import {
-  SipState,
-  SipStatus,
-  CallStatus,
-} from "../core/types";
+import { SipState, SipStatus, CallStatus } from "../core/types";
 import { EventTargetEmitter } from "../core/eventEmitter";
 import {
   SipErrorHandler,
@@ -83,7 +79,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       sessionManager: this.sessionManager,
       emit: (event, payload) => this.emit(event as any, payload as any),
       emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
-      attachSessionHandlers: (sessionId, session) => this.attachSessionHandlers(sessionId, session),
+      attachSessionHandlers: (sessionId, session) =>
+        this.attachSessionHandlers(sessionId, session),
       getMaxSessionCount: () => this.maxSessionCount,
     });
   }
@@ -91,7 +88,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public connect(uri: string, password: string, config: SipConfiguration) {
     this.disconnect();
     this.stateStore.setState({ sipStatus: SipStatus.Connecting });
-    const { debug: cfgDebug, maxSessionCount, pendingMediaTtlMs, ...uaCfg } = config;
+    const {
+      debug: cfgDebug,
+      maxSessionCount,
+      pendingMediaTtlMs,
+      ...uaCfg
+    } = config;
     this.maxSessionCount =
       typeof maxSessionCount === "number" ? maxSessionCount : Infinity;
     this.sessionManager.setPendingMediaTtl(pendingMediaTtlMs);
@@ -99,6 +101,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     this.userAgent.start(uri, password, uaCfg, { debug });
     this.attachUAHandlers();
     this.attachBeforeUnload();
+    this.syncDebugInspector(debug);
   }
 
   public registerUA() {
@@ -116,7 +119,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public call(target: string, callOptions: CallOptions = {}) {
     try {
       const opts = this.ensureMediaConstraints(callOptions);
-      if (opts.mediaStream) this.sessionManager.enqueueOutgoingMedia(opts.mediaStream);
+      if (opts.mediaStream)
+        this.sessionManager.enqueueOutgoingMedia(opts.mediaStream);
 
       const ua = this.userAgent.getUA();
       ua?.call(target, opts);
@@ -129,12 +133,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     }
   }
 
-  public answer(options: AnswerOptions = {}) {
-    const sessionId = this.resolveExistingSessionId();
-    if (!sessionId) return false;
-    return this.answerSession(sessionId, options);
+  public answer(sessionId: string, options: AnswerOptions = {}) {
+    const resolved = this.resolveExistingSessionId(sessionId);
+    if (!resolved) return false;
+    return this.answerSession(resolved, options);
   }
-  public hangup(sessionId?: string, options?: TerminateOptions) {
+  public hangup(sessionId: string, options?: TerminateOptions) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     return this.hangupSession(resolved, options);
@@ -145,22 +149,32 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     ids.forEach((id) => this.hangupSession(id, options));
     return ids.length > 0;
   }
-  
-  public toggleMute() {
-    return this.toggleMuteSession();
+
+  public toggleMute(sessionId: string) {
+    return this.toggleMuteSession(sessionId);
   }
-  public toggleHold() {
-    return this.toggleHoldSession();
+  public toggleHold(sessionId: string) {
+    return this.toggleHoldSession(sessionId);
   }
-  public sendDTMF(tones: string | number, options?: DTFMOptions) {
-    const sessionId = this.resolveExistingSessionId();
-    return this.sendDTMFSession(tones, options, sessionId ?? undefined);
+  public sendDTMF(
+    sessionId: string,
+    tones: string | number,
+    options?: DTFMOptions
+  ) {
+    return this.sendDTMFSession(sessionId, tones, options);
   }
-  public transfer(target: string | RTCSession, options?: ReferOptions) {
-    return this.transferSession(target, options);
+  public transfer(
+    sessionId: string,
+    target: string | RTCSession,
+    options?: ReferOptions
+  ) {
+    return this.transferSession(sessionId, target, options);
   }
-  public attendedTransfer(otherSession: RTCSession) {
-    return this.attendedTransferSession(otherSession);
+  public attendedTransfer(
+    sessionId: string,
+    otherSession: RTCSession
+  ) {
+    return this.attendedTransferSession(sessionId, otherSession);
   }
 
   public onChange(fn: (s: SipState) => void) {
@@ -181,6 +195,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public setDebug(debug?: boolean | string) {
     this.debugPattern = debug;
     this.userAgent.setDebug(debug);
+    this.syncDebugInspector(debug);
   }
 
   private attachSessionHandlers(sessionId: string, session: RTCSession) {
@@ -249,7 +264,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       rtc,
       detachSessionHandlers: () => this.cleanupSession(sessionId, session),
       emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
-      onSessionFailed: (err?: string, event?: RTCSessionEvent) => this.onSessionFailed(err, event),
+      onSessionFailed: (err?: string, event?: RTCSessionEvent) =>
+        this.onSessionFailed(err, event),
       sessionId,
     });
   }
@@ -264,7 +280,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     const statusText = (event as any)?.message?.reason_phrase;
     const causeText =
       rawCause ||
-      (statusCode ? `${statusCode}${statusText ? " " + statusText : ""}` : "call failed");
+      (statusCode
+        ? `${statusCode}${statusText ? " " + statusText : ""}`
+        : "call failed");
     this.emitError(
       { raw: event, cause: rawCause, statusCode, statusText },
       "SESSION_FAILED",
@@ -290,7 +308,10 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   private sessionExists(sessionId: string) {
-    return !!this.sessionManager.getSession(sessionId) || !!this.sessionManager.getRtc(sessionId);
+    return (
+      !!this.sessionManager.getSession(sessionId) ||
+      !!this.sessionManager.getRtc(sessionId)
+    );
   }
 
   private resolveExistingSessionId(sessionId?: string) {
@@ -299,9 +320,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     return this.sessionExists(id) ? id : null;
   }
 
-  private ensureMediaConstraints<T extends { mediaStream?: MediaStream; mediaConstraints?: MediaStreamConstraints }>(
-    opts: T
-  ): T {
+  private ensureMediaConstraints<
+    T extends {
+      mediaStream?: MediaStream;
+      mediaConstraints?: MediaStreamConstraints;
+    }
+  >(opts: T): T {
     if (opts.mediaStream || opts.mediaConstraints) return opts;
     return { ...opts, mediaConstraints: { audio: true, video: false } } as T;
   }
@@ -351,9 +375,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public sendDTMFSession(
+    sessionId: string,
     tones: string | number,
-    options?: DTFMOptions,
-    sessionId?: string
+    options?: DTFMOptions
   ) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
@@ -366,9 +390,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public transferSession(
+    sessionId: string,
     target: string | RTCSession,
-    options?: ReferOptions,
-    sessionId?: string
+    options?: ReferOptions
   ) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
@@ -380,7 +404,10 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     return true;
   }
 
-  public attendedTransferSession(otherSession: RTCSession, sessionId?: string) {
+  public attendedTransferSession(
+    sessionId: string,
+    otherSession: RTCSession
+  ) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
     const sessionState = this.stateStore
@@ -392,7 +419,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public setSessionMedia(sessionId: string, stream: MediaStream) {
-    if (!this.sessionExists(sessionId)) return;
     this.sessionManager.setSessionMedia(sessionId, stream);
   }
 
@@ -401,15 +427,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     const rtc = this.sessionManager.getRtc(sessionId);
     return rtc ? rtc.switchCamera(track) : false;
   }
-
-  public startScreenShareSession(
-    sessionId: string,
-    getDisplayMedia: () => Promise<MediaStream>
-  ) {
-    if (!this.sessionExists(sessionId)) return false;
-    return this.sessionManager.startScreenShare(sessionId, getDisplayMedia);
-  }
-
 
   public enableVideoSession(sessionId: string) {
     if (!this.sessionExists(sessionId)) return false;
@@ -453,6 +470,19 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     if (typeof window === "undefined" || !this.unloadHandler) return;
     window.removeEventListener("beforeunload", this.unloadHandler);
     this.unloadHandler = undefined;
+  }
+
+  private syncDebugInspector(debug?: boolean | string) {
+    if (typeof window === "undefined") return;
+    const win = window as any;
+    const disabledInspector = () => {
+      console.warn("SIP debug inspector disabled; enable debug to inspect.");
+      return null;
+    };
+    win.sipState = () =>
+      debug ? this.stateStore.getState() : disabledInspector();
+    win.sipSessions = () =>
+      debug ? this.getSessions() : disabledInspector();
   }
 }
 

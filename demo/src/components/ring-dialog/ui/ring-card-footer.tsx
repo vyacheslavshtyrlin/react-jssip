@@ -1,67 +1,73 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
-import { CallStatus, useSipActions, useSipState } from "react-jssip-kit";
+import { Dialpad } from "../../dialer/ui/dialpad";
+import type { SipSessionState } from "react-jssip-kit";
+import { CallStatus, useSipActions } from "react-jssip-kit";
+import { DTMF_TRANSPORT } from "jssip/lib/Constants";
 import { Mic, MicOff, PhoneCall, PhoneOff, Smartphone } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-export const RingCardFooter = ({
-  dtmfMode,
-  setDtmfMode,
-  sessionId,
-}: {
-  dtmfMode: boolean;
-  setDtmfMode: (value: boolean) => void;
-  sessionId?: string;
-}) => {
-  const { sessions } = useSipState();
-  const current =
-    sessions.find((s) => s.id === sessionId) ||
-    sessions.find((s) => s.status === CallStatus.Active) ||
-    sessions[0];
-  const callDirection = current?.direction ?? "none";
-  const muted = current?.muted ?? false;
-  const callStatus = current?.status ?? CallStatus.Idle;
+export const RingCardFooter = ({ session }: { session: SipSessionState }) => {
+  const [dtmfOpen, setDtmfOpen] = useState(false);
+  const callDirection = session.direction ?? "none";
+  const muted = session.muted ?? false;
+  const callStatus = session.status ?? CallStatus.Idle;
 
-  const { answer, hangup, toggleMute } = useSipActions();
+  const { answer, hangup, toggleMute, sendDTMF } = useSipActions();
 
   const isActive = callStatus === CallStatus.Active;
 
   return (
-    <DialogFooter className="w-full my-2 flex flex-row justify-around sm:justify-around">
-      <Button
-        onClick={() => answer(sessionId)}
-        disabled={callDirection !== "incoming"}
-        size="lg"
-        className="bg-green-500 animate-pulse rounded-full"
-      >
-        <PhoneCall />
-      </Button>
+    <div className="relative">
+      <div className="w-full my-2 flex flex-row gap-4 justify-around sm:justify-around">
+        <Button
+          onClick={() => answer(session.id)}
+          disabled={callDirection !== "incoming"}
+          size="lg"
+          className="bg-green-500 animate-pulse rounded-full"
+        >
+          <PhoneCall />
+        </Button>
 
-      <Button
-        onClick={() => setDtmfMode(!dtmfMode)}
-        // disabled={!isActive}
-        className="rounded-full"
-        size="lg"
-        variant="neutral"
-      >
-        <Smartphone />
-      </Button>
+        <Button
+          onClick={() => setDtmfOpen((prev) => !prev)}
+          size="lg"
+          variant="neutral"
+          className="rounded-full"
+        >
+          <Smartphone />
+        </Button>
 
-      <Button
-        onClick={toggleMute}
-        disabled={!isActive}
-        className="rounded-full"
-        size="lg"
-      >
-        {muted ? <Mic /> : <MicOff />}
-      </Button>
+        <Button
+          onClick={() => toggleMute(session.id)}
+          disabled={!isActive}
+          className="rounded-full"
+          size="lg"
+        >
+          {muted ? <Mic /> : <MicOff />}
+        </Button>
 
-      <Button
-        onClick={() => hangup(sessionId)}
-        size="lg"
-        className="bg-red-500 rounded-full"
-      >
-        <PhoneOff />
-      </Button>
-    </DialogFooter>
+        <Button
+          onClick={() => hangup(session.id)}
+          size="lg"
+          className="bg-red-500 rounded-full"
+        >
+          <PhoneOff />
+        </Button>
+      </div>
+      <Dialog open={dtmfOpen} onOpenChange={setDtmfOpen}>
+        <DialogContent className="w-80">
+          <div className="rounded-xl border bg-background p-3 shadow-xl">
+            <Dialpad
+              onNumberClick={(num) =>
+                sendDTMF(session.id, num, {
+                  transportType: DTMF_TRANSPORT.RFC2833,
+                })
+              }
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };

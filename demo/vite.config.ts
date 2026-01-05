@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react-jssip-kit": path.resolve(__dirname, "../react-jssip-kit/dist"),
     },
   },
 })

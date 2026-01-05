@@ -30,9 +30,6 @@ export function useSipActions() {
       switchCamera: (
         ...args: Parameters<typeof client.switchCameraSession>
       ) => client.switchCameraSession(...args),
-      startScreenShare: (
-        ...args: Parameters<typeof client.startScreenShareSession>
-      ) => client.startScreenShareSession(...args),
       enableVideo: (...args: Parameters<typeof client.enableVideoSession>) =>
         client.enableVideoSession(...args),
       disableVideo: (...args: Parameters<typeof client.disableVideoSession>) =>

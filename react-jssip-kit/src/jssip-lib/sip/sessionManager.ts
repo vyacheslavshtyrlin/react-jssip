@@ -164,8 +164,4 @@ export class SessionManager {
     return rtc ? rtc.attendedTransfer(otherSession) : false;
   }
 
-  startScreenShare(sessionId: string, getDisplayMedia: () => Promise<MediaStream>) {
-    const rtc = this.getRtc(sessionId);
-    return rtc ? rtc.startScreenShare(getDisplayMedia) : false;
-  }
 }
