@@ -9,8 +9,6 @@ export function useSipState(): SipState {
     [client]
   );
 
-  console.log(client.state)
-
   const getSnapshot = useCallback(() => client.state, [client]);
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

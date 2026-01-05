@@ -37,6 +37,8 @@ type SipClientOptions = {
   debug?: boolean | string;
 };
 
+const SESSION_DEBUG_KEY = "sip-debug-enabled";
+
 export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public readonly userAgent = new SipUserAgent();
   public readonly stateStore = new SipStateStore();
@@ -50,6 +52,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   private sessionManager = new SessionManager();
   private lifecycle: SessionLifecycle;
   private unloadHandler?: () => void;
+  private stateLogOff?: () => void;
 
   public get state(): SipState {
     return this.stateStore.getState();
@@ -83,6 +86,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
         this.attachSessionHandlers(sessionId, session),
       getMaxSessionCount: () => this.maxSessionCount,
     });
+
+    if (typeof window !== "undefined") {
+      // Let window.sipSupport trigger client debug toggles.
+      (window as any).sipDebugBridge = (debug?: boolean | string) =>
+        this.setDebug(debug ?? true);
+    }
   }
 
   public connect(uri: string, password: string, config: SipConfiguration) {
@@ -97,7 +106,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     this.maxSessionCount =
       typeof maxSessionCount === "number" ? maxSessionCount : Infinity;
     this.sessionManager.setPendingMediaTtl(pendingMediaTtlMs);
-    const debug = this.debugPattern ?? cfgDebug;
+    // Config debug has priority, then persisted session flag, then prior setting.
+    const debug = cfgDebug ?? this.getPersistedDebug() ?? this.debugPattern;
     this.userAgent.start(uri, password, uaCfg, { debug });
     this.attachUAHandlers();
     this.attachBeforeUnload();
@@ -474,6 +484,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   private syncDebugInspector(debug?: boolean | string) {
     if (typeof window === "undefined") return;
+    this.toggleStateLogger(Boolean(debug));
+
     const win = window as any;
     const disabledInspector = () => {
       console.warn("SIP debug inspector disabled; enable debug to inspect.");
@@ -483,6 +495,53 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       debug ? this.stateStore.getState() : disabledInspector();
     win.sipSessions = () =>
       debug ? this.getSessions() : disabledInspector();
+  }
+
+  private toggleStateLogger(enabled: boolean) {
+    if (!enabled) {
+      this.stateLogOff?.();
+      this.stateLogOff = undefined;
+      return;
+    }
+    if (this.stateLogOff) return;
+
+    let prev = this.stateStore.getState();
+    // Emit initial snapshot right away for visibility.
+    console.info("[sip][state]", { initial: true }, prev);
+
+    this.stateLogOff = this.stateStore.onChange((next) => {
+      const changes = this.diffState(prev, next);
+      if (changes) {
+        // Log concise diff and the current snapshot for quick inspection.
+        console.info("[sip][state]", changes, next);
+      }
+      prev = next;
+    });
+  }
+
+  private diffState(
+    prev: SipState,
+    next: SipState
+  ): Record<string, { from: unknown; to: unknown }> | null {
+    const changed: Record<string, { from: unknown; to: unknown }> = {};
+    for (const key of Object.keys(next) as Array<keyof SipState>) {
+      if (prev[key] !== next[key]) {
+        changed[key as string] = { from: prev[key], to: next[key] };
+      }
+    }
+    return Object.keys(changed).length ? changed : null;
+  }
+
+  private getPersistedDebug(): boolean | string | undefined {
+    if (typeof window === "undefined") return undefined;
+    try {
+      const persisted = window.sessionStorage.getItem(SESSION_DEBUG_KEY);
+      if (!persisted) return undefined;
+      if (persisted === "true") return true;
+      return persisted;
+    } catch {
+      return undefined;
+    }
   }
 }
 

@@ -1,3 +1,5 @@
+import "./sip/debugger"; // ensure window helpers attach on load
+
 export * from "./sip/types";
 
 export {

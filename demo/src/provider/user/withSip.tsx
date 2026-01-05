@@ -24,6 +24,7 @@ export default function withSip<P extends object>(
         ...rest,
         sockets: [new WebSocketInterface(socket)],
         register: true,
+        debug: true
       });
 
       return () => sipClient.disconnect();

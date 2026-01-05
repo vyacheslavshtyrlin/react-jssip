@@ -4,7 +4,10 @@
   "private": false,
   "description": "React hooks and provider around JsSIP client",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/jssip-lib/sip/debugger.ts",
+    "./dist/jssip-lib/sip/debugger.js"
+  ],
   "types": "./dist/index.d.ts",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
