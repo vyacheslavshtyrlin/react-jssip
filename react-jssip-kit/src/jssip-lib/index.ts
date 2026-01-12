@@ -30,10 +30,8 @@ export {
   CallDirection,
   SipStatusList,
   CallStatusList,
-  CallDirectionList,
   isSipStatus,
   isCallStatus,
-  isCallDirection,
 } from "./core/types";
 
 export type {

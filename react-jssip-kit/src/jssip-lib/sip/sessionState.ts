@@ -1,4 +1,4 @@
-import { CallDirection, CallStatus, SipSessionState } from "../core/types";
+import { CallStatus, SipSessionState } from "../core/types";
 import { SipStateStore } from "../core/sipStateStore";
 
 export function holdOtherSessions(
@@ -25,7 +25,7 @@ export function upsertSessionState(
   const base: SipSessionState = existing ?? {
     id: sessionId,
     status: CallStatus.Idle,
-    direction: CallDirection.None,
+    direction: null,
     from: null,
     to: null,
     muted: false,

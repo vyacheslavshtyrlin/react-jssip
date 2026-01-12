@@ -20,18 +20,12 @@ export const CallStatus = {
 } as const;
 export type CallStatus = (typeof CallStatus)[keyof typeof CallStatus];
 
-export const CallDirection = {
-  Incoming: "incoming",
-  Outgoing: "outgoing",
-  None: "none",
-} as const;
-
 export type CallDirection = Originator.LOCAL | Originator.REMOTE;
 
 export type SipSessionState = {
   id: string;
   status: CallStatus;
-  direction: CallDirection;
+  direction: CallDirection | null;
   from: string | null;
   to: string | null;
   muted: boolean;
@@ -48,7 +42,6 @@ export interface SipState {
 
 export const SipStatusList = Object.values(SipStatus);
 export const CallStatusList = Object.values(CallStatus);
-export const CallDirectionList = Object.values(CallDirection);
 
 export function isSipStatus(v: unknown): v is SipStatus {
   return (
@@ -58,12 +51,6 @@ export function isSipStatus(v: unknown): v is SipStatus {
 export function isCallStatus(v: unknown): v is CallStatus {
   return (
     typeof v === "string" && (CallStatusList as readonly string[]).includes(v)
-  );
-}
-export function isCallDirection(v: unknown): v is CallDirection {
-  return (
-    typeof v === "string" &&
-    (CallDirectionList as readonly string[]).includes(v)
   );
 }
 
