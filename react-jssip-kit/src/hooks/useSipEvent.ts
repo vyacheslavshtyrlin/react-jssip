@@ -1,30 +1,33 @@
 import { useEffect } from "react";
-import type { JsSIPEventHandler, JsSIPEventName } from "jssip-lib";
+import type {
+  SessionEventName,
+  SessionEventPayload,
+  UAEventName,
+  UAEventPayload,
+} from "jssip-lib";
 import { useSip } from "./useSip";
 
-type EventName = JsSIPEventName | "sessionCleanup";
-
-export function useSipEvent<K extends EventName>(
+export function useSipEvent<K extends UAEventName>(
   event: K,
-  handler?: JsSIPEventHandler<K>
+  handler?: (payload?: UAEventPayload<K>) => void
 ) {
   const { sipEventManager } = useSip();
 
   useEffect(() => {
     if (!handler) return;
-    return sipEventManager.on(event as JsSIPEventName, handler as any);
+    return sipEventManager.onUA(event, handler);
   }, [event, handler, sipEventManager]);
 }
 
-export function useSipSessionEvent<K extends EventName>(
+export function useSipSessionEvent<K extends SessionEventName>(
   sessionId: string | null | undefined,
   event: K,
-  handler?: JsSIPEventHandler<K>
+  handler?: (payload?: SessionEventPayload<K>) => void
 ) {
   const { sipEventManager } = useSip();
 
   useEffect(() => {
     if (!handler || !sessionId) return;
-    return sipEventManager.onSession(sessionId, event as JsSIPEventName, handler as any);
+    return sipEventManager.onSession(sessionId, event, handler);
   }, [event, handler, sessionId, sipEventManager]);
 }

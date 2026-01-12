@@ -34,21 +34,22 @@ import type {
   CallStatusType,
   CallOptions,
   AnswerOptions,
-  DTFMOptions,
+  DTMFOptions,
   ReferOptions,
   JsSIPEventMap,
   JsSIPEventName,
+  SessionEventName,
+  SessionEventPayload,
+  UAEventName,
+  UAEventPayload,
   SipEventHandlers,
   SipEventManager,
   RTCSession,
-  RTCSessionEvent,
-  RTCSessionEventMap,
-  UAEventMap,
-  TerminateOptions,
   SipConfiguration,
-
 } from "./jssip-lib"; // type (compile-time)
 import type { SipSessionState } from "./jssip-lib/core/types";
+
+import { RTCSessionEventMap, TerminateOptions } from "./jssip-lib/sip/types";
 
 export type {
   SipState,
@@ -58,16 +59,18 @@ export type {
   CallStatusType,
   CallOptions,
   AnswerOptions,
-  DTFMOptions,
+  DTMFOptions,
   ReferOptions,
   JsSIPEventMap,
   JsSIPEventName,
+  SessionEventName,
+  SessionEventPayload,
+  UAEventName,
+  UAEventPayload,
   SipEventHandlers,
   SipEventManager,
   RTCSession,
-  RTCSessionEvent,
-  RTCSessionEventMap,
-  UAEventMap,
   TerminateOptions,
-  SipConfiguration
+  RTCSessionEventMap,
+  SipConfiguration,
 };

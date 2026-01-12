@@ -1,83 +1,46 @@
-import type { RTCSession, RTCSessionEventMap } from "jssip/lib/RTCSession";
-import type {
-  CallOptions,
+import {
+  RTCSessionEventMap,
+  RTCSession,
+  AnswerOptions,
+  ReferOptions,
+  TerminateOptions,
+  DTMFOptions,
+  EndEvent
+} from "jssip/src/RTCSession";
+
+import {
   IncomingRTCSessionEvent,
   UAConfiguration,
   UAEventMap,
-} from "jssip/lib/UA";
+  RTCSessionEvent,
+  CallOptions,
+} from "jssip/src/UA";
 
-export const JsSIPEventName = {
-  // UA events
-  connecting: "connecting",
-  connected: "connected",
-  disconnected: "disconnected",
-  registered: "registered",
-  unregistered: "unregistered",
-  registrationFailed: "registrationFailed",
-  registrationExpiring: "registrationExpiring",
-  newRTCSession: "newRTCSession",
-  newMessage: "newMessage",
-  sipEvent: "sipEvent",
-  newOptions: "newOptions",
-
-  // Session/PC events
-  peerconnection: "peerconnection",
-  sending: "sending",
-  progress: "progress",
-  accepted: "accepted",
-  confirmed: "confirmed",
-  ended: "ended",
-  failed: "failed",
-  newDTMF: "newDTMF",
-  newInfo: "newInfo",
-  hold: "hold",
-  unhold: "unhold",
-  muted: "muted",
-  unmuted: "unmuted",
-  reinvite: "reinvite",
-  update: "update",
-  refer: "refer",
-  replaces: "replaces",
-  sdp: "sdp",
-  error: "error",
-  icecandidate: "icecandidate",
-  getusermediafailed: "getusermediafailed",
-  "peerconnection:createofferfailed": "peerconnection:createofferfailed",
-  "peerconnection:createanswerfailed": "peerconnection:createanswerfailed",
-  "peerconnection:setlocaldescriptionfailed":
-    "peerconnection:setlocaldescriptionfailed",
-  "peerconnection:setremotedescriptionfailed":
-    "peerconnection:setremotedescriptionfailed",
-
-  missed: "missed",
-} as const;
-
-type ExtraEvents = {
+type UAExtraEvents = {
   error: { cause: string; code?: string; raw?: any; message?: string };
   missed: IncomingRTCSessionEvent;
-  sessionCleanup: { sessionId: string; session: RTCSession | null };
 };
 
-export type JsSIPEventName =
-  | keyof UAEventMap
-  | keyof RTCSessionEventMap
-  | keyof ExtraEvents;
+export type UAEventName = keyof UAEventMap | keyof UAExtraEvents;
+export type SessionEventName = keyof RTCSessionEventMap;
+export type JsSIPEventName = UAEventName | SessionEventName;
 
-export type JsSIPEventPayload<K extends JsSIPEventName> =
-  K extends SessionEventName
-    ? { sessionId: string; data: BaseJsSIPEventPayload<K> }
-    : BaseJsSIPEventPayload<K>;
+export type UAEventPayload<K extends UAEventName> = K extends keyof UAEventMap
+  ? Parameters<UAEventMap[K]>[0]
+  : K extends keyof UAExtraEvents
+  ? UAExtraEvents[K]
+  : never;
 
-type BaseJsSIPEventPayload<K extends JsSIPEventName> =
-  K extends keyof UAEventMap
-    ? Parameters<UAEventMap[K]>[0]
-    : K extends keyof RTCSessionEventMap
+export type SessionEventPayload<K extends SessionEventName> =
+  K extends keyof RTCSessionEventMap
     ? Parameters<RTCSessionEventMap[K]>[0]
-    : K extends keyof ExtraEvents
-    ? ExtraEvents[K]
     : never;
 
-type SessionEventName = keyof RTCSessionEventMap | "missed" | "newRTCSession";
+export type JsSIPEventPayload<K extends JsSIPEventName> = K extends UAEventName
+  ? UAEventPayload<K>
+  : K extends SessionEventName
+  ? SessionEventPayload<K>
+  : never;
 
 export type JsSIPEventHandler<K extends JsSIPEventName> = (
   payload?: JsSIPEventPayload<K>
@@ -88,48 +51,20 @@ export type SipEventHandlers = {
 };
 
 export interface SipEventManager {
-  on: <K extends JsSIPEventName>(
+  onUA: <K extends UAEventName>(
     event: K,
-    handler: JsSIPEventHandler<K>
+    handler: (payload?: UAEventPayload<K>) => void
   ) => () => void;
-  onSession: <K extends JsSIPEventName>(
+  onSession: <K extends SessionEventName>(
     sessionId: string,
     event: K,
-    handler: JsSIPEventHandler<K>
+    handler: (payload?: SessionEventPayload<K>) => void
   ) => () => void;
-  bind: (handlers: SipEventHandlers) => () => void;
-  bindSession: (sessionId: string, handlers: SipEventHandlers) => () => void;
 }
 
 export type JsSIPEventMap = {
   [K in JsSIPEventName]: JsSIPEventPayload<K>;
 };
-
-export type {
-  RTCSession,
-  EndEvent,
-  RTCSessionEventMap,
-  TerminateOptions,
-  OutgoingEvent,
-  IncomingEvent,
-  HoldEvent,
-  AnswerOptions,
-  ReferOptions,
-} from "jssip/lib/RTCSession";
-
-import type { DTFMOptions as _DTMFOptions } from "jssip/lib/RTCSession";
-export type DTFMOptions = _DTMFOptions;
-
-export type {
-  CallOptions,
-  ConnectedEvent,
-  DisconnectEvent,
-  RegisteredEvent,
-  RTCSessionEvent,
-  UAEventMap,
-  UnRegisteredEvent,
-  ConnectingEvent,
-} from "jssip/lib/UA";
 
 /**
  * JsSIP call options with per-call From overrides.
@@ -151,4 +86,19 @@ export type SipConfiguration = Omit<UAConfiguration, "password" | "uri"> & {
    * Milliseconds to keep enqueued outgoing media before dropping. Defaults to 30000.
    */
   pendingMediaTtlMs?: number;
+};
+
+export type {
+  RTCSession,
+  RTCSessionEventMap,
+  AnswerOptions,
+  DTMFOptions,
+  ReferOptions,
+  IncomingRTCSessionEvent,
+  UAConfiguration,
+  UAEventMap,
+  TerminateOptions,
+  EndEvent,
+  CallOptions,
+  RTCSessionEvent,
 };

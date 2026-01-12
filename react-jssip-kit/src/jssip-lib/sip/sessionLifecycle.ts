@@ -1,9 +1,8 @@
 import { SipStateStore } from "../core/sipStateStore";
 import { CallDirection, CallStatus } from "../core/types";
-import type { RTCSession, RTCSessionEvent } from "./types";
 import { SessionManager } from "./sessionManager";
 import { holdOtherSessions, upsertSessionState } from "./sessionState";
-import type { JsSIPEventName } from "./types";
+import type { JsSIPEventName, RTCSession, RTCSessionEvent } from "./types";
 import type { SipErrorPayload } from "../core/sipErrorHandler";
 
 type Deps = {
@@ -44,7 +43,7 @@ export class SessionLifecycle {
         /* ignore termination errors */
       }
       if (e.originator === "remote") {
-        this.emit("missed", { sessionId, data: e });
+        this.emit("missed", e);
       }
       this.emitError("max session count reached", "MAX_SESSIONS_REACHED", "max session count reached");
       return;
@@ -76,7 +75,7 @@ export class SessionLifecycle {
         ?.some((r: RTCRtpReceiver) => r.track?.kind === "video");
 
     upsertSessionState(this.state, sessionId, {
-      direction: e.originator === "remote" ? CallDirection.Incoming : CallDirection.Outgoing,
+      direction: e.originator,
       from: e.originator === "remote" ? e.request.from.uri.user : null,
       to: e.request.to.uri.user,
       status: e.originator === "remote" ? CallStatus.Ringing : CallStatus.Dialing,
@@ -84,6 +83,6 @@ export class SessionLifecycle {
       remoteVideoEnabled: sdpHasVideo,
     });
 
-    this.emit("newRTCSession", { sessionId, data: e });
+    this.emit("newRTCSession", e);
   }
 }

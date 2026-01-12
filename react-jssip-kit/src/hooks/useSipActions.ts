@@ -18,18 +18,14 @@ export function useSipActions() {
         client.sendDTMFSession(...args),
       transfer: (...args: Parameters<typeof client.transferSession>) =>
         client.transferSession(...args),
-      attendedTransfer: (
-        ...args: Parameters<typeof client.attendedTransferSession>
-      ) => client.attendedTransferSession(...args),
       getSession: (...args: Parameters<typeof client.getSession>) =>
         client.getSession(...args),
       getSessionIds: () => client.getSessionIds(),
       getSessions: () => client.getSessions(),
       setSessionMedia: (...args: Parameters<typeof client.setSessionMedia>) =>
         client.setSessionMedia(...args),
-      switchCamera: (
-        ...args: Parameters<typeof client.switchCameraSession>
-      ) => client.switchCameraSession(...args),
+      switchCamera: (...args: Parameters<typeof client.switchCameraSession>) =>
+        client.switchCameraSession(...args),
       enableVideo: (...args: Parameters<typeof client.enableVideoSession>) =>
         client.enableVideoSession(...args),
       disableVideo: (...args: Parameters<typeof client.disableVideoSession>) =>

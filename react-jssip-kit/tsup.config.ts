@@ -9,6 +9,7 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   dts: true,
-  external: ["react", "react-dom"],
+  external: ["react", "react-dom", "jssip"],
 });
   
+

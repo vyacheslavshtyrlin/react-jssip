@@ -9,7 +9,8 @@ type SessionEntry = {
 
 export class SessionManager {
   private entries = new Map<string, SessionEntry>();
-  private pendingMediaQueue: Array<{ stream: MediaStream; addedAt: number }> = [];
+  private pendingMediaQueue: Array<{ stream: MediaStream; addedAt: number }> =
+    [];
   private pendingMediaTtlMs = 30000;
 
   setPendingMediaTtl(ms: number | undefined) {
@@ -38,7 +39,11 @@ export class SessionManager {
   getOrCreateRtc(sessionId: string, session?: RTCSession) {
     let entry = this.entries.get(sessionId);
     if (!entry) {
-      entry = { rtc: new WebRTCSessionController(), session: null, media: null };
+      entry = {
+        rtc: new WebRTCSessionController(),
+        session: null,
+        media: null,
+      };
       this.entries.set(sessionId, entry);
     }
     if (session) {
@@ -154,14 +159,8 @@ export class SessionManager {
     return rtc ? rtc.sendDTMF(tones, options) : false;
   }
 
-  transfer(sessionId: string, target: string | RTCSession, options?: any) {
+  transfer(sessionId: string, target: string, options?: any) {
     const rtc = this.getRtc(sessionId);
     return rtc ? rtc.transfer(target, options) : false;
   }
-
-  attendedTransfer(sessionId: string, otherSession: RTCSession) {
-    const rtc = this.getRtc(sessionId);
-    return rtc ? rtc.attendedTransfer(otherSession) : false;
-  }
-
 }

@@ -1,10 +1,10 @@
 import type {
+  AnswerOptions,
+  DTMFOptions,
+  ReferOptions,
   RTCSession,
   TerminateOptions,
-  AnswerOptions,
-  DTFMOptions,
-  ReferOptions,
-} from "jssip/lib/RTCSession";
+} from "./types";
 
 export class WebRTCSessionController {
   currentSession: RTCSession | null = null;
@@ -84,24 +84,15 @@ export class WebRTCSessionController {
     return this.currentSession ? (this.currentSession.unhold(), true) : false;
   }
 
-  public sendDTMF(tones: string | number, options?: DTFMOptions): boolean {
+  public sendDTMF(tones: string | number, options?: DTMFOptions): boolean {
     return this.currentSession
       ? (this.currentSession.sendDTMF(tones, options), true)
       : false;
   }
 
-  public transfer(
-    target: string | RTCSession,
-    options?: ReferOptions
-  ): boolean {
+  public transfer(target: string, options?: ReferOptions): boolean {
     return this.currentSession
       ? (this.currentSession.refer(target as any, options), true)
-      : false;
-  }
-
-  public attendedTransfer(otherSession: RTCSession): boolean {
-    return this.currentSession
-      ? (this.currentSession.refer(otherSession as any), true)
       : false;
   }
 
@@ -132,5 +123,4 @@ export class WebRTCSessionController {
 
     return true;
   }
-
 }

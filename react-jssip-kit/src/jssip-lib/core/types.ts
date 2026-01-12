@@ -1,3 +1,5 @@
+import { Originator } from "jssip/src/RTCSession";
+
 export const SipStatus = {
   Disconnected: "disconnected",
   Connecting: "connecting",
@@ -6,7 +8,8 @@ export const SipStatus = {
   Unregistered: "unregistered",
   RegistrationFailed: "registrationFailed",
 } as const;
-export type SipStatus = typeof SipStatus[keyof typeof SipStatus];
+
+export type SipStatus = (typeof SipStatus)[keyof typeof SipStatus];
 
 export const CallStatus = {
   Idle: "idle",
@@ -15,14 +18,15 @@ export const CallStatus = {
   Active: "active",
   Hold: "hold",
 } as const;
-export type CallStatus = typeof CallStatus[keyof typeof CallStatus];
+export type CallStatus = (typeof CallStatus)[keyof typeof CallStatus];
 
 export const CallDirection = {
   Incoming: "incoming",
   Outgoing: "outgoing",
   None: "none",
 } as const;
-export type CallDirection = typeof CallDirection[keyof typeof CallDirection];
+
+export type CallDirection = Originator.LOCAL | Originator.REMOTE;
 
 export type SipSessionState = {
   id: string;
@@ -47,13 +51,20 @@ export const CallStatusList = Object.values(CallStatus);
 export const CallDirectionList = Object.values(CallDirection);
 
 export function isSipStatus(v: unknown): v is SipStatus {
-  return typeof v === "string" && (SipStatusList as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (SipStatusList as readonly string[]).includes(v)
+  );
 }
 export function isCallStatus(v: unknown): v is CallStatus {
-  return typeof v === "string" && (CallStatusList as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (CallStatusList as readonly string[]).includes(v)
+  );
 }
 export function isCallDirection(v: unknown): v is CallDirection {
-  return typeof v === "string" && (CallDirectionList as readonly string[]).includes(v);
+  return (
+    typeof v === "string" &&
+    (CallDirectionList as readonly string[]).includes(v)
+  );
 }
 
 export type Unsubscribe = () => void;

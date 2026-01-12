@@ -2,15 +2,13 @@ import { SipUserAgent } from "./userAgent";
 import {
   AnswerOptions,
   CallOptions,
-  DTFMOptions,
+  DTMFOptions,
   JsSIPEventMap,
-  JsSIPEventName,
   ReferOptions,
   RTCSession,
   RTCSessionEvent,
   RTCSessionEventMap,
   SipConfiguration,
-  SipEventHandlers,
   SipEventManager,
   TerminateOptions,
   UAEventMap,
@@ -169,22 +167,16 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public sendDTMF(
     sessionId: string,
     tones: string | number,
-    options?: DTFMOptions
+    options?: DTMFOptions
   ) {
     return this.sendDTMFSession(sessionId, tones, options);
   }
   public transfer(
     sessionId: string,
-    target: string | RTCSession,
+    target: string,
     options?: ReferOptions
   ) {
     return this.transferSession(sessionId, target, options);
-  }
-  public attendedTransfer(
-    sessionId: string,
-    otherSession: RTCSession
-  ) {
-    return this.attendedTransferSession(sessionId, otherSession);
   }
 
   public onChange(fn: (s: SipState) => void) {
@@ -238,8 +230,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   private cleanupSession(sessionId: string, session?: RTCSession) {
-    const existingSession = this.sessionManager.getSession(sessionId);
-    this.emit("sessionCleanup", { sessionId, session: existingSession });
     const targetSession =
       session ??
       this.sessionManager.getSession(sessionId) ??
@@ -250,11 +240,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   private cleanupAllSessions() {
-    const ids = this.sessionManager.getSessionIds();
-    ids.forEach((id) => {
-      const s = this.sessionManager.getSession(id);
-      this.emit("sessionCleanup", { sessionId: id, session: s });
-    });
     this.sessionManager.cleanupAllSessions();
     this.sessionHandlers.clear();
     this.stateStore.setState({
@@ -387,7 +372,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public sendDTMFSession(
     sessionId: string,
     tones: string | number,
-    options?: DTFMOptions
+    options?: DTMFOptions
   ) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
@@ -401,7 +386,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   public transferSession(
     sessionId: string,
-    target: string | RTCSession,
+    target: string,
     options?: ReferOptions
   ) {
     const resolved = this.resolveExistingSessionId(sessionId);
@@ -411,20 +396,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       .sessions.find((s) => s.id === resolved);
     if (sessionState?.status === CallStatus.Active)
       this.sessionManager.transfer(resolved, target, options);
-    return true;
-  }
-
-  public attendedTransferSession(
-    sessionId: string,
-    otherSession: RTCSession
-  ) {
-    const resolved = this.resolveExistingSessionId(sessionId);
-    if (!resolved) return false;
-    const sessionState = this.stateStore
-      .getState()
-      .sessions.find((s) => s.id === resolved);
-    if (sessionState?.status === CallStatus.Active)
-      this.sessionManager.attendedTransfer(resolved, otherSession);
     return true;
   }
 
@@ -493,8 +464,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     };
     win.sipState = () =>
       debug ? this.stateStore.getState() : disabledInspector();
-    win.sipSessions = () =>
-      debug ? this.getSessions() : disabledInspector();
+    win.sipSessions = () => (debug ? this.getSessions() : disabledInspector());
   }
 
   private toggleStateLogger(enabled: boolean) {
@@ -551,53 +521,14 @@ export function createSipClientInstance(options?: SipClientOptions): SipClient {
 
 export function createSipEventManager(client: SipClient): SipEventManager {
   return {
-    on(event, handler) {
+    onUA(event, handler) {
       return client.on(event, handler as any);
     },
     onSession(sessionId, event, handler) {
-      return client.on(event, (payload: any) => {
-        if (
-          payload &&
-          "sessionId" in payload &&
-          payload.sessionId === sessionId
-        ) {
-          handler(payload);
-        }
-      });
-    },
-    bind(handlers: Partial<SipEventHandlers>) {
-      const offs: Array<() => void> = [];
-
-      (Object.keys(handlers) as JsSIPEventName[]).forEach((event) => {
-        const handler = handlers[event];
-        if (handler) {
-          offs.push(client.on(event, handler as any));
-        }
-      });
-
-      return () => offs.forEach((off) => off());
-    },
-    bindSession(sessionId, handlers: Partial<SipEventHandlers>) {
-      const offs: Array<() => void> = [];
-
-      (Object.keys(handlers) as JsSIPEventName[]).forEach((event) => {
-        const handler = handlers[event];
-        if (handler) {
-          offs.push(
-            client.on(event, (payload: any) => {
-              if (
-                payload &&
-                "sessionId" in payload &&
-                payload.sessionId === sessionId
-              ) {
-                handler(payload);
-              }
-            })
-          );
-        }
-      });
-
-      return () => offs.forEach((off) => off());
+      const session = client.getSession(sessionId);
+      if (!session) return () => {};
+      session.on(event as any, handler as any);
+      return () => session.off(event as any, handler as any);
     },
   };
 }

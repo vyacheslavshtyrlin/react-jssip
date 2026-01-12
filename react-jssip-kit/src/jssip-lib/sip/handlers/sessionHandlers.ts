@@ -12,11 +12,7 @@ type Deps = {
   state: SipStateStore;
   rtc: WebRTCSessionController;
   detachSessionHandlers: () => void;
-  emitError: (
-    raw: any,
-    code?: string,
-    fallback?: string
-  ) => SipErrorPayload;
+  emitError: (raw: any, code?: string, fallback?: string) => SipErrorPayload;
   onSessionFailed: (error?: string, event?: any) => void;
   sessionId: string;
 };
@@ -33,15 +29,10 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
 
   return {
     progress: (e: any) => {
-      emitter.emit("progress", { sessionId, data: e });
-      state.batchSet({
-        sessions: state.getState().sessions.map((s) =>
-          s.id === sessionId ? { ...s, status: CallStatus.Ringing } : s
-        ),
-      });
+      emitter.emit("progress", e);
     },
     accepted: (e: any) => {
-      emitter.emit("accepted", { sessionId, data: e });
+      emitter.emit("accepted", e);
       state.batchSet({
         sessions: state.getState().sessions.map((s) =>
           s.id === sessionId
@@ -54,10 +45,10 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
         ),
       });
     },
-    confirmed: (e: any) => emitter.emit("confirmed", { sessionId, data: e }),
+    confirmed: (e: any) => emitter.emit("confirmed", e),
 
     ended: (e: any) => {
-      emitter.emit("ended", { sessionId, data: e });
+      emitter.emit("ended", e);
       detachSessionHandlers();
       rtc.cleanup();
       const nextSessions = state
@@ -68,7 +59,7 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
       });
     },
     failed: (e: EndEvent) => {
-      emitter.emit("failed", { sessionId, data: e });
+      emitter.emit("failed", e);
       detachSessionHandlers();
       rtc.cleanup();
       const cause = e?.cause || "call failed";
@@ -82,86 +73,76 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
     },
 
     muted: () => {
-      emitter.emit("muted", { sessionId, data: undefined });
+      emitter.emit("muted", undefined);
       upsertSessionState(state, sessionId, { muted: true });
     },
     unmuted: () => {
-      emitter.emit("unmuted", { sessionId, data: undefined });
+      emitter.emit("unmuted", undefined);
       upsertSessionState(state, sessionId, { muted: false });
     },
     hold: () => {
-      emitter.emit("hold", { sessionId, data: undefined as any });
+      emitter.emit("hold", undefined);
       upsertSessionState(state, sessionId, { status: CallStatus.Hold });
     },
     unhold: () => {
-      emitter.emit("unhold", { sessionId, data: undefined as any });
+      emitter.emit("unhold", undefined);
       upsertSessionState(state, sessionId, { status: CallStatus.Active });
     },
 
-    reinvite: (e: any) => emitter.emit("reinvite", { sessionId, data: e }),
-    update: (e: any) => emitter.emit("update", { sessionId, data: e }),
-    sdp: (e: any) => emitter.emit("sdp", { sessionId, data: e }),
-    icecandidate: (e: any) => emitter.emit("icecandidate", { sessionId, data: e }),
-    refer: (e: any) => emitter.emit("refer", { sessionId, data: e }),
-    replaces: (e: any) => emitter.emit("replaces", { sessionId, data: e }),
-    newDTMF: (e: any) => emitter.emit("newDTMF", { sessionId, data: e }),
-    newInfo: (e: any) => emitter.emit("newInfo", { sessionId, data: e }),
+    reinvite: (e: any) => emitter.emit("reinvite", e),
+    update: (e: any) => emitter.emit("update", e),
+    sdp: (e: any) => emitter.emit("sdp", e),
+    icecandidate: (e: any) => emitter.emit("icecandidate", e),
+    refer: (e: any) => emitter.emit("refer", e),
+    replaces: (e: any) => emitter.emit("replaces", e),
+    newDTMF: (e: any) => emitter.emit("newDTMF", e),
+    newInfo: (e: any) => emitter.emit("newInfo", e),
 
     getusermediafailed: (e: any) => {
-      emitter.emit("getusermediafailed", { sessionId, data: e });
+      emitter.emit("getusermediafailed", e);
       detachSessionHandlers();
       rtc.cleanup();
       onSessionFailed("getUserMedia failed", e);
       state.batchSet({
-        sessions: state
-          .getState()
-          .sessions.filter((s) => s.id !== sessionId),
+        sessions: state.getState().sessions.filter((s) => s.id !== sessionId),
       });
     },
     "peerconnection:createofferfailed": (e: any) => {
-      emitter.emit("peerconnection:createofferfailed", { sessionId, data: e });
+      emitter.emit("peerconnection:createofferfailed", e);
       detachSessionHandlers();
       rtc.cleanup();
       onSessionFailed("peer connection createOffer failed", e);
       state.batchSet({
-        sessions: state
-          .getState()
-          .sessions.filter((s) => s.id !== sessionId),
+        sessions: state.getState().sessions.filter((s) => s.id !== sessionId),
       });
     },
     "peerconnection:createanswerfailed": (e: any) => {
-      emitter.emit("peerconnection:createanswerfailed", { sessionId, data: e });
+      emitter.emit("peerconnection:createanswerfailed", e);
       detachSessionHandlers();
       rtc.cleanup();
       onSessionFailed("peer connection createAnswer failed", e);
       state.batchSet({
-        sessions: state
-          .getState()
-          .sessions.filter((s) => s.id !== sessionId),
+        sessions: state.getState().sessions.filter((s) => s.id !== sessionId),
       });
     },
     "peerconnection:setlocaldescriptionfailed": (e: any) => {
-      emitter.emit("peerconnection:setlocaldescriptionfailed", { sessionId, data: e });
+      emitter.emit("peerconnection:setlocaldescriptionfailed", e);
       detachSessionHandlers();
       rtc.cleanup();
       onSessionFailed("peer connection setLocalDescription failed", e);
       state.batchSet({
-        sessions: state
-          .getState()
-          .sessions.filter((s) => s.id !== sessionId),
+        sessions: state.getState().sessions.filter((s) => s.id !== sessionId),
       });
     },
     "peerconnection:setremotedescriptionfailed": (e: any) => {
-      emitter.emit("peerconnection:setremotedescriptionfailed", { sessionId, data: e });
+      emitter.emit("peerconnection:setremotedescriptionfailed", e);
       detachSessionHandlers();
       rtc.cleanup();
       onSessionFailed("peer connection setRemoteDescription failed", e);
       state.batchSet({
-        sessions: state
-          .getState()
-          .sessions.filter((s) => s.id !== sessionId),
+        sessions: state.getState().sessions.filter((s) => s.id !== sessionId),
       });
     },
-    peerconnection: (e: any) => emitter.emit("peerconnection", { sessionId, data: e }),
+    peerconnection: (e: any) => emitter.emit("peerconnection", e),
   };
 }

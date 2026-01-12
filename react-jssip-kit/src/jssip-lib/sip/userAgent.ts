@@ -1,6 +1,5 @@
 import JsSIP, { UA } from "jssip";
-import type { UAConfiguration } from "jssip/lib/UA";
-import type { SipConfiguration } from "./types";
+import { SipConfiguration, UAConfiguration } from "./types";
 
 type StartOpts = { debug?: boolean | string };
 
