@@ -6,6 +6,7 @@ import { JsSIPEventMap } from "../types";
 import { EventTargetEmitter } from "../../core/eventEmitter";
 import { SipErrorPayload } from "../../core/sipErrorHandler";
 import { upsertSessionState } from "../sessionState";
+import { IncomingAckEvent, IncomingEvent, OutgoingAckEvent, OutgoingEvent } from "jssip/src/RTCSession";
 
 type Deps = {
   emitter: EventTargetEmitter<JsSIPEventMap>;
@@ -28,10 +29,10 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
   } = deps;
 
   return {
-    progress: (e: any) => {
+    progress: (e: IncomingEvent | OutgoingEvent) => {
       emitter.emit("progress", e);
     },
-    accepted: (e: any) => {
+    accepted: (e: IncomingEvent | OutgoingEvent) => {
       emitter.emit("accepted", e);
       state.batchSet({
         sessions: state.getState().sessions.map((s) =>
@@ -45,9 +46,10 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
         ),
       });
     },
-    confirmed: (e: any) => emitter.emit("confirmed", e),
+    confirmed: (e: IncomingAckEvent | OutgoingAckEvent) =>
+      emitter.emit("confirmed", e),
 
-    ended: (e: any) => {
+    ended: (e: EndEvent) => {
       emitter.emit("ended", e);
       detachSessionHandlers();
       rtc.cleanup();

@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Dialpad } from "../../dialer/ui/dialpad";
 import type { SipSessionState } from "react-jssip-kit";
 import { CallStatus, useSipActions } from "react-jssip-kit";
-import { DTMF_TRANSPORT } from "jssip/lib/Constants";
 import { Mic, MicOff, PhoneCall, PhoneOff, Smartphone } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { DTMF_TRANSPORT } from "jssip/src/Constants";
 
 export const RingCardFooter = ({ session }: { session: SipSessionState }) => {
   const [dtmfOpen, setDtmfOpen] = useState(false);
@@ -22,7 +22,7 @@ export const RingCardFooter = ({ session }: { session: SipSessionState }) => {
       <div className="w-full my-2 flex flex-row gap-4 justify-around sm:justify-around">
         <Button
           onClick={() => answer(session.id)}
-          disabled={callDirection !== "incoming"}
+          disabled={callDirection !== "local"}
           size="lg"
           className="bg-green-500 animate-pulse rounded-full"
         >

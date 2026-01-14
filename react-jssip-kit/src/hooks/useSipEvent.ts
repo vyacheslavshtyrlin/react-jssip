@@ -20,14 +20,14 @@ export function useSipEvent<K extends UAEventName>(
 }
 
 export function useSipSessionEvent<K extends SessionEventName>(
-  sessionId: string | null | undefined,
+  sessionId: string,
   event: K,
   handler?: (payload?: SessionEventPayload<K>) => void
 ) {
   const { sipEventManager } = useSip();
 
   useEffect(() => {
-    if (!handler || !sessionId) return;
+    if (!handler) return;
     return sipEventManager.onSession(sessionId, event, handler);
   }, [event, handler, sessionId, sipEventManager]);
 }

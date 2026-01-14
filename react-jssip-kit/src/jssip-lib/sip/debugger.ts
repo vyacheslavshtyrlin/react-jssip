@@ -25,8 +25,10 @@ export class SipDebugger {
   initFromSession(storage: StorageLike | null = safeSessionStorage()): void {
     try {
       const saved = storage?.getItem(this.storageKey);
-      if (saved) {
-        this.enable(saved === "true" ? this.defaultPattern : saved, storage);
+      if (saved === "true") {
+        this.enable(this.defaultPattern, storage);
+      } else if (saved) {
+        storage?.removeItem?.(this.storageKey);
       }
     } catch {
       /* ignore */
@@ -42,10 +44,9 @@ export class SipDebugger {
         JsSIP.debug.enable(pattern);
         this.logger = console;
       }
-      // Persist pattern in sessionStorage only.
-      storage?.setItem?.(this.storageKey, pattern || "true");
+      storage?.setItem?.(this.storageKey, "true");
       try {
-        (window as any).sipDebugBridge?.(pattern);
+        (window as any).sipDebugBridge?.(true);
       } catch {
         /* ignore */
       }

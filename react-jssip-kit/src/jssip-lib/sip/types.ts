@@ -1,13 +1,6 @@
-import {
-  RTCSessionEventMap,
-  RTCSession,
-  AnswerOptions,
-  ReferOptions,
-  TerminateOptions,
-  DTMFOptions,
-  EndEvent
-} from "jssip/src/RTCSession";
 
+
+import { AnswerOptions, DTMFOptions, EndEvent, ReferOptions, RTCSession, RTCSessionEventMap, TerminateOptions } from "jssip/src/RTCSession";
 import {
   IncomingRTCSessionEvent,
   UAConfiguration,
