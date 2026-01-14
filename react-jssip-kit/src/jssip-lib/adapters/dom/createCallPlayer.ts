@@ -50,6 +50,7 @@ export function createCallPlayer(audioEl: HTMLAudioElement) {
   };
 
   function bindToSession(session: RTCSession) {
+    clearAudioStream(audioEl.srcObject as MediaStream | null);
     if (
       session?.direction === "outgoing" &&
       session.connection instanceof RTCPeerConnection
@@ -72,6 +73,7 @@ export function createCallPlayer(audioEl: HTMLAudioElement) {
       const e = (payload as any)?.data as RTCSessionEvent | undefined;
       cleanupSessionPeerListener = dispose(cleanupSessionPeerListener);
       cleanupTrackListener = dispose(cleanupTrackListener);
+      clearAudioStream(audioEl.srcObject as MediaStream | null);
 
       if (!e?.session) return;
 

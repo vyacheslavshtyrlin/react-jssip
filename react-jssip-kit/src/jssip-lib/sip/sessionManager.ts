@@ -9,31 +9,12 @@ type SessionEntry = {
 
 export class SessionManager {
   private entries = new Map<string, SessionEntry>();
-  private pendingMediaQueue: Array<{ stream: MediaStream; addedAt: number }> =
-    [];
-  private pendingMediaTtlMs = 30000;
 
-  setPendingMediaTtl(ms: number | undefined) {
-    if (typeof ms === "number" && ms > 0) this.pendingMediaTtlMs = ms;
-  }
-
-  enqueueOutgoingMedia(stream: MediaStream) {
-    this.pendingMediaQueue.push({ stream, addedAt: Date.now() });
-  }
-
-  dequeueOutgoingMedia(): MediaStream | null {
-    const now = Date.now();
-    while (this.pendingMediaQueue.length) {
-      const next = this.pendingMediaQueue.shift();
-      if (!next) break;
-      if (now - next.addedAt <= this.pendingMediaTtlMs) {
-        return next.stream;
-      } else {
-        // drop stale stream
-        next.stream.getTracks().forEach((t) => t.stop());
-      }
+  private stopMediaStream(stream?: MediaStream | null) {
+    if (!stream) return;
+    for (const t of stream.getTracks()) {
+      if (t.readyState !== "ended") t.stop();
     }
-    return null;
   }
 
   getOrCreateRtc(sessionId: string, session?: RTCSession) {
@@ -78,6 +59,9 @@ export class SessionManager {
       session: null,
       media: null,
     };
+    if (entry.media && entry.media !== stream) {
+      this.stopMediaStream(entry.media);
+    }
     entry.media = stream;
     entry.rtc.setMediaStream(stream);
     this.entries.set(sessionId, entry);
@@ -112,6 +96,7 @@ export class SessionManager {
     const entry = this.entries.get(sessionId);
     if (entry) {
       entry.rtc.cleanup();
+      this.stopMediaStream(entry.media);
       this.entries.delete(sessionId);
     }
   }
@@ -119,9 +104,9 @@ export class SessionManager {
   cleanupAllSessions() {
     for (const [, entry] of this.entries.entries()) {
       entry.rtc.cleanup();
+      this.stopMediaStream(entry.media);
     }
     this.entries.clear();
-    this.pendingMediaQueue = [];
   }
 
   answer(sessionId: string, options: any) {

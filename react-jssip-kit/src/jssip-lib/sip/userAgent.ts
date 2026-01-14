@@ -79,15 +79,16 @@ export class SipUserAgent {
   }
 
   protected applyDebug(debug?: boolean | string): void {
-    const enabled = debug === undefined ? this.readSessionFlag() : !!debug;
-    const pattern = typeof debug === "string" ? debug : "JsSIP:*";
+    const stored = debug === undefined ? this.readSessionFlag() : debug;
+    const enabled = !!stored;
+    const pattern = typeof stored === "string" ? stored : "JsSIP:*";
 
     if (enabled) {
       JsSIP.debug.enable(pattern);
       const dbg: any = (JsSIP as any).debug;
       if (dbg?.setLogger) dbg.setLogger(console);
       else if (dbg) dbg.logger = console;
-      this.persistSessionFlag();
+      this.persistSessionFlag(typeof stored === "string" ? stored : undefined);
     } else {
       (JsSIP.debug as any)?.disable?.();
       this.clearSessionFlag();
@@ -98,19 +99,24 @@ export class SipUserAgent {
     return new JsSIP.UA(cfg);
   }
 
-  private readSessionFlag(): boolean {
+  private readSessionFlag(): string | false {
     try {
       if (typeof window === "undefined") return false;
-      return window.sessionStorage.getItem("sip-debug-enabled") === "true";
+      const value = window.sessionStorage.getItem("sip-debug-enabled");
+      if (!value) return false;
+      return value;
     } catch {
       return false;
     }
   }
 
-  private persistSessionFlag(): void {
+  private persistSessionFlag(pattern?: string): void {
     try {
       if (typeof window !== "undefined") {
-        window.sessionStorage.setItem("sip-debug-enabled", "true");
+        window.sessionStorage.setItem(
+          "sip-debug-enabled",
+          pattern || "JsSIP:*"
+        );
       }
     } catch {
       /* ignore */

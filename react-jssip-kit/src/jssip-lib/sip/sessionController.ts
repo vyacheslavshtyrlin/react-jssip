@@ -24,10 +24,10 @@ export class WebRTCSessionController {
 
   public cleanup(stopTracks: boolean = true): void {
     const pc = this.getPC();
+    const isClosed =
+      pc?.connectionState === "closed" || pc?.signalingState === "closed";
 
     if (pc && typeof pc.getSenders === "function") {
-      const isClosed =
-        pc.connectionState === "closed" || pc.signalingState === "closed";
       if (!isClosed) {
         for (const s of pc.getSenders()) {
           try {
@@ -40,7 +40,19 @@ export class WebRTCSessionController {
     }
 
     if (stopTracks && this.mediaStream) {
-      for (const t of this.mediaStream.getTracks()) t.stop();
+      const senderTracks =
+        pc && !isClosed
+          ? new Set(
+              pc
+                .getSenders()
+                .map((s) => s.track)
+                .filter((t): t is MediaStreamTrack => Boolean(t))
+            )
+          : null;
+      for (const t of this.mediaStream.getTracks()) {
+        if (senderTracks?.has(t)) continue;
+        t.stop();
+      }
     }
 
     this.mediaStream = null;
@@ -120,6 +132,26 @@ export class WebRTCSessionController {
     if (sender) await sender.replaceTrack(nextVideoTrack);
 
     if (old && old !== nextVideoTrack) old.stop();
+
+    return true;
+  }
+
+  public async replaceAudioTrack(
+    nextAudioTrack: MediaStreamTrack
+  ): Promise<boolean> {
+    const pc = this.getPC();
+    if (!pc) return false;
+
+    if (!this.mediaStream) this.mediaStream = new MediaStream();
+
+    const old = this.mediaStream.getAudioTracks()[0];
+    this.mediaStream.addTrack(nextAudioTrack);
+    if (old) this.mediaStream.removeTrack(old);
+
+    const sender = pc.getSenders?.().find((s) => s.track?.kind === "audio");
+    if (sender) await sender.replaceTrack(nextAudioTrack);
+
+    if (old && old !== nextAudioTrack) old.stop();
 
     return true;
   }

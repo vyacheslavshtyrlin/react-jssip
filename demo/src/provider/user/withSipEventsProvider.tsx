@@ -58,20 +58,6 @@ export default function withSipEventsProvider<P extends object>(
       }
     });
 
-    useSipSessionEvent(incomingSession, "accepted", () => {
-      notify(acceptedSound);
-    });
-
-    useSipSessionEvent(incomingSession, "ended", () => {
-      notify(endedSound, { clearIncoming: true });
-    });
-
-    useSipSessionEvent(incomingSession, "failed", (e) => {
-      notify(endedSound, {
-        clearIncoming: true,
-        toastMessage: (e as any)?.data?.cause || "error",
-      });
-    });
 
     useSipEvent("missed", (e) => {
       const from = (e as any)?.data?.request?.from?.uri?.user ?? "";

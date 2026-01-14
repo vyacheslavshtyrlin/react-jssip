@@ -72,13 +72,21 @@ export type SipConfiguration = Omit<UAConfiguration, "password" | "uri"> & {
    */
   debug?: boolean | string;
   /**
+   * Enable automatic microphone recovery for sessions.
+   */
+  enableMicRecovery?: boolean;
+  /**
+   * Interval between recovery attempts in milliseconds.
+   */
+  micRecoveryIntervalMs?: number;
+  /**
+   * Maximum number of recovery attempts per session.
+   */
+  micRecoveryMaxRetries?: number;
+  /**
    * Maximum allowed concurrent sessions. Additional sessions are rejected.
    */
   maxSessionCount?: number;
-  /**
-   * Milliseconds to keep enqueued outgoing media before dropping. Defaults to 30000.
-   */
-  pendingMediaTtlMs?: number;
 };
 
 export type {

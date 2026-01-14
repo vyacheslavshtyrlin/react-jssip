@@ -27,6 +27,7 @@ import { createSessionHandlers } from "./handlers/sessionHandlers";
 import { SessionManager } from "./sessionManager";
 import { removeSessionState } from "./sessionState";
 import { SessionLifecycle } from "./sessionLifecycle";
+import { MicRecoveryManager } from "./micRecovery";
 
 type SipClientOptions = {
   errorMessages?: Record<string, string>;
@@ -49,6 +50,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   private maxSessionCount = Infinity;
   private sessionManager = new SessionManager();
   private lifecycle: SessionLifecycle;
+  private micRecovery: MicRecoveryManager;
   private unloadHandler?: () => void;
   private stateLogOff?: () => void;
 
@@ -74,7 +76,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
       onNewRTCSession: (e: RTCSessionEvent) => this.onNewRTCSession(e),
     });
+
     this.uaHandlerKeys = Object.keys(this.uaHandlers) as (keyof UAEventMap)[];
+
     this.lifecycle = new SessionLifecycle({
       state: this.stateStore,
       sessionManager: this.sessionManager,
@@ -83,6 +87,17 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       attachSessionHandlers: (sessionId, session) =>
         this.attachSessionHandlers(sessionId, session),
       getMaxSessionCount: () => this.maxSessionCount,
+    });
+    this.micRecovery = new MicRecoveryManager({
+      getRtc: (sessionId) => this.sessionManager.getRtc(sessionId),
+      getSession: (sessionId) => this.sessionManager.getSession(sessionId),
+      getSessionState: (sessionId) =>
+        this.stateStore.getState().sessions.find((s) => s.id === sessionId),
+      setSessionMedia: (sessionId, stream) =>
+        this.sessionManager.setSessionMedia(sessionId, stream),
+      emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
+      requestMicrophoneStream: (deviceId) =>
+        this.requestMicrophoneStreamInternal(deviceId),
     });
 
     if (typeof window !== "undefined") {
@@ -97,13 +112,19 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     this.stateStore.setState({ sipStatus: SipStatus.Connecting });
     const {
       debug: cfgDebug,
+      enableMicRecovery,
+      micRecoveryIntervalMs,
+      micRecoveryMaxRetries,
       maxSessionCount,
-      pendingMediaTtlMs,
       ...uaCfg
     } = config;
     this.maxSessionCount =
       typeof maxSessionCount === "number" ? maxSessionCount : Infinity;
-    this.sessionManager.setPendingMediaTtl(pendingMediaTtlMs);
+    this.micRecovery.configure({
+      enabled: Boolean(enableMicRecovery),
+      intervalMs: micRecoveryIntervalMs,
+      maxRetries: micRecoveryMaxRetries,
+    });
     // Config debug has priority, then persisted session flag, then prior setting.
     const debug = cfgDebug ?? this.getPersistedDebug() ?? this.debugPattern;
     this.userAgent.start(uri, password, uaCfg, { debug });
@@ -127,11 +148,15 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public call(target: string, callOptions: CallOptions = {}) {
     try {
       const opts = this.ensureMediaConstraints(callOptions);
-      if (opts.mediaStream)
-        this.sessionManager.enqueueOutgoingMedia(opts.mediaStream);
-
       const ua = this.userAgent.getUA();
-      ua?.call(target, opts);
+      const session = ua?.call(target, opts) as RTCSession | undefined;
+      if (session && opts.mediaStream) {
+        const sessionId = String((session as any)?.id ?? "");
+        if (sessionId) {
+          this.sessionManager.setSessionMedia(sessionId, opts.mediaStream);
+          this.sessionManager.setSession(sessionId, session);
+        }
+      }
     } catch (e: unknown) {
       const err = this.emitError(e, "CALL_FAILED", "call failed");
       this.cleanupAllSessions();
@@ -171,11 +196,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   ) {
     return this.sendDTMFSession(sessionId, tones, options);
   }
-  public transfer(
-    sessionId: string,
-    target: string,
-    options?: ReferOptions
-  ) {
+  public transfer(sessionId: string, target: string, options?: ReferOptions) {
     return this.transferSession(sessionId, target, options);
   }
 
@@ -235,12 +256,14 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       this.sessionManager.getSession(sessionId) ??
       this.sessionManager.getRtc(sessionId)?.currentSession;
     this.detachSessionHandlers(sessionId, targetSession as any);
+    this.micRecovery.disable(sessionId);
     this.sessionManager.cleanupSession(sessionId);
     removeSessionState(this.stateStore, sessionId);
   }
 
   private cleanupAllSessions() {
     this.sessionManager.cleanupAllSessions();
+    this.micRecovery.cleanupAll();
     this.sessionHandlers.clear();
     this.stateStore.setState({
       sessions: [],
@@ -261,6 +284,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
       onSessionFailed: (err?: string, event?: RTCSessionEvent) =>
         this.onSessionFailed(err, event),
+      enableMicrophoneRecovery: (confirmedSessionId) =>
+        this.micRecovery.enable(confirmedSessionId),
       sessionId,
     });
   }
@@ -328,6 +353,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public answerSession(sessionId: string, options: AnswerOptions = {}) {
     if (!sessionId || !this.sessionExists(sessionId)) return false;
     const opts = this.ensureMediaConstraints(options);
+    if (opts.mediaStream) {
+      this.sessionManager.setSessionMedia(sessionId, opts.mediaStream);
+    }
     return this.sessionManager.answer(sessionId, opts);
   }
 
@@ -507,10 +535,35 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     try {
       const persisted = window.sessionStorage.getItem(SESSION_DEBUG_KEY);
       if (!persisted) return undefined;
-      if (persisted === "true") return true;
       return persisted;
     } catch {
       return undefined;
+    }
+  }
+
+  private async requestMicrophoneStreamInternal(
+    deviceId?: string
+  ): Promise<MediaStream> {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      throw new Error("getUserMedia not available");
+    }
+    const audio =
+      deviceId && deviceId !== "default"
+        ? { deviceId: { exact: deviceId } }
+        : true;
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio });
+    } catch (err: any) {
+      const cause = err?.name || "getUserMedia failed";
+      this.emitError(
+        { raw: err, cause },
+        "MICROPHONE_UNAVAILABLE",
+        "microphone unavailable"
+      );
+      throw err;
     }
   }
 }

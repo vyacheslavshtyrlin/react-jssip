@@ -15,6 +15,7 @@ type Deps = {
   detachSessionHandlers: () => void;
   emitError: (raw: any, code?: string, fallback?: string) => SipErrorPayload;
   onSessionFailed: (error?: string, event?: any) => void;
+  enableMicrophoneRecovery?: (sessionId: string) => void;
   sessionId: string;
 };
 
@@ -46,8 +47,10 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
         ),
       });
     },
-    confirmed: (e: IncomingAckEvent | OutgoingAckEvent) =>
-      emitter.emit("confirmed", e),
+    confirmed: (e: IncomingAckEvent | OutgoingAckEvent) => {
+      emitter.emit("confirmed", e);
+      deps.enableMicrophoneRecovery?.(sessionId);
+    },
 
     ended: (e: EndEvent) => {
       emitter.emit("ended", e);
