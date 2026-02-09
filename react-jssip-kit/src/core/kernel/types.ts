@@ -1,0 +1,67 @@
+import type { SipState } from "../contracts/state";
+import type { SipClient } from "../client";
+import type {
+  AnswerOptions,
+  CallOptions,
+  DTMFOptions,
+  ReferOptions,
+  SessionEventName,
+  SessionEventPayload,
+  SipConfiguration,
+  SipEventManager,
+  TerminateOptions,
+  UAEventName,
+  UAEventPayload,
+} from "../sip/types";
+import type { MediaModule } from "../modules/media/types";
+
+export interface SipKernel {
+  client: SipClient;
+  store: {
+    getState: () => SipState;
+    subscribe: (onStoreChange: () => void) => () => void;
+  };
+  commands: {
+    connect: (
+      uri: string,
+      password: string,
+      config: SipConfiguration
+    ) => void;
+    disconnect: () => void;
+    register: () => void;
+    setDebug: (debug?: boolean | string) => void;
+    call: (target: string, options?: CallOptions) => void;
+    answer: (sessionId: string, options?: AnswerOptions) => boolean;
+    hangup: (sessionId: string, options?: TerminateOptions) => boolean;
+    hangupAll: (options?: TerminateOptions) => boolean;
+    toggleMute: (sessionId?: string) => boolean;
+    toggleHold: (sessionId?: string) => boolean;
+    sendDTMF: (
+      sessionId: string,
+      tones: string | number,
+      options?: DTMFOptions
+    ) => boolean;
+    transfer: (
+      sessionId: string,
+      target: string,
+      options?: ReferOptions
+    ) => boolean;
+    getSession: SipClient["getSession"];
+    getSessionIds: SipClient["getSessionIds"];
+    getSessions: SipClient["getSessions"];
+    setSessionMedia: SipClient["setSessionMedia"];
+  };
+  events: {
+    onUA: <K extends UAEventName>(
+      event: K,
+      handler: (payload?: UAEventPayload<K>) => void
+    ) => () => void;
+    onSession: <K extends SessionEventName>(
+      sessionId: string,
+      event: K,
+      handler: (payload?: SessionEventPayload<K>) => void
+    ) => () => void;
+  };
+  eventManager: SipEventManager;
+  media: MediaModule;
+}

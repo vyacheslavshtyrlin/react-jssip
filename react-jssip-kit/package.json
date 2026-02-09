@@ -1,12 +1,11 @@
 {
     "name": "react-jssip-kit",
-    "version": "0.7.9",
+    "version": "1.0.0",
     "private": false,
     "description": "React hooks and provider around JsSIP client",
     "type": "module",
     "sideEffects": [
-        "./src/jssip-lib/sip/debugger.ts",
-        "./dist/jssip-lib/sip/debugger.js"
+        "./src/core/modules/debug/sip-debugger.ts"
     ],
     "types": "./dist/index.d.ts",
     "main": "./dist/index.cjs",

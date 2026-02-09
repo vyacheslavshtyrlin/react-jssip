@@ -6,10 +6,6 @@
     "outDir": "dist",
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
-    "paths": {
-      "jssip-lib": ["./src/jssip-lib/index.ts"],
-      "jssip-lib/dom": ["./src/jssip-lib/dom.ts"]
-    },
     "skipLibCheck": true,
     "strict": true,
     "declaration": true,

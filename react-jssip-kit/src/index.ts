@@ -1,27 +1,35 @@
+import "./core/modules/debug/sip-debugger";
 import {
-  createSipClientInstance,
-  createSipEventManager,
-  WebSocketInterface,
   SipStatus,
   CallStatus,
   CallDirection,
-} from "./jssip-lib";
+} from "./core/contracts/state";
+import { WebSocketInterface } from "jssip";
+import {
+  createSipClientInstance,
+  createSipEventManager,
+} from "./core/client";
+import { createSipKernel } from "./core/kernel";
 
-export * from "./context";
+export { useSipState } from "./hooks/useSipState";
+export { useSipActions } from "./hooks/useSipActions";
+export { useSipKernel } from "./hooks/useSip";
+export { useSipSelector } from "./hooks/useSipSelector";
+export { useActiveSipSession } from "./hooks/useActiveSipSession";
+export { useSipSession } from "./hooks/useSipSession";
+export { useSipSessions } from "./hooks/useSipSessions";
+export { useSipEvent, useSipSessionEvent } from "./hooks/useSipEvent";
+export { useSessionMedia } from "./hooks/useSessionMedia";
+export { CallPlayer } from "./components/call-player";
 
-export * from "./hooks/useSipState";
-export * from "./hooks/useSipActions";
-export * from "./hooks/useSip";
-export * from "./hooks/useSipSessions";
-export * from "./hooks/useSipEvent";
-export * from "./components/call-player";
-
-export * from "./provider";
+export { SipProvider } from "./provider";
+export type { SipProviderProps } from "./provider";
 
 export {
   CallStatus,
   CallDirection,
   createSipClientInstance,
+  createSipKernel,
   createSipEventManager,
   WebSocketInterface,
   SipStatus,
@@ -29,9 +37,10 @@ export {
 
 import type {
   SipState,
-  SipStatusType,
-  CallDirectionType,
-  CallStatusType,
+  SipSessionState,
+  SipStatus as SipStatusType,
+  CallDirection as CallDirectionType,
+  CallStatus as CallStatusType,
   CallOptions,
   AnswerOptions,
   DTMFOptions,
@@ -45,11 +54,11 @@ import type {
   SipEventHandlers,
   SipEventManager,
   RTCSession,
+  TerminateOptions,
+  RTCSessionEventMap,
   SipConfiguration,
-} from "./jssip-lib"; // type (compile-time)
-import type { SipSessionState } from "./jssip-lib/core/types";
-
-import { RTCSessionEventMap, TerminateOptions } from "./jssip-lib/sip/types";
+  SipKernel,
+} from "./core/public-types";
 
 export type {
   SipState,
@@ -73,4 +82,5 @@ export type {
   TerminateOptions,
   RTCSessionEventMap,
   SipConfiguration,
+  SipKernel,
 };

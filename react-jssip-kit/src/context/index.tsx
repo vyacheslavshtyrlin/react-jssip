@@ -1,6 +1,5 @@
 import { createContext } from "react";
-import type { SipClient } from "jssip-lib";
-import type { SipEventManager } from "jssip-lib";
+import type { SipKernel } from "../core/kernel/types";
 
-export type SipContextType = { client: SipClient, sipEventManager: SipEventManager };
+export type SipContextType = SipKernel;
 export const SipContext = createContext<SipContextType | null>(null);

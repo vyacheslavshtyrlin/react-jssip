@@ -1,25 +1,20 @@
 import { useEffect, useRef } from "react";
-import { useSip } from "../hooks/useSip";
-import { createCallPlayer } from "jssip-lib/dom";
+import { useSessionMedia } from "../hooks/useSessionMedia";
 
 export function CallPlayer({ sessionId }: { sessionId?: string }) {
-  const { client } = useSip();
+  const { remoteStream } = useSessionMedia(sessionId);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!audioRef.current) return;
-
-    const player = createCallPlayer(audioRef.current);
-    const session = sessionId ? client.getSession(sessionId) : null;
-    const off = session
-      ? player.bindToSession(session)
-      : player.bindToClient(client);
-
+    audioRef.current.srcObject = remoteStream;
+    audioRef.current.play?.().catch(() => {});
     return () => {
-      off?.();
-      player.detach();
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+      }
     };
-  }, [client, sessionId]);
+  }, [remoteStream]);
 
   return <audio ref={audioRef} autoPlay playsInline />;
 }

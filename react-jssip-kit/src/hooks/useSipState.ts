@@ -1,15 +1,8 @@
-import { useCallback, useSyncExternalStore } from "react";
-import type { SipState } from "jssip-lib";
-import { useSip } from "./useSip";
+import { useSyncExternalStore } from "react";
+import type { SipState } from "../core/contracts/state";
+import { useSipKernel } from "./useSip";
 
 export function useSipState(): SipState {
-  const { client } = useSip();
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => client.onChange(onStoreChange),
-    [client]
-  );
-
-  const getSnapshot = useCallback(() => client.state, [client]);
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { store } = useSipKernel();
+  return useSyncExternalStore(store.subscribe, store.getState, store.getState);
 }
