@@ -1,15 +1,14 @@
 import { SipStateStore } from "../core/sipStateStore";
-import { CallDirection, CallStatus } from "../core/types";
+import { CallStatus } from "../core/types";
 import { SessionManager } from "./sessionManager";
 import { holdOtherSessions, upsertSessionState } from "./sessionState";
 import type { JsSIPEventName, RTCSession, RTCSessionEvent } from "./types";
-import type { SipErrorPayload } from "../core/sipErrorHandler";
+import { sipDebugLogger } from "./debugLogging";
 
 type Deps = {
   state: SipStateStore;
   sessionManager: SessionManager;
   emit: <K extends JsSIPEventName>(event: K, payload: any) => void;
-  emitError: (raw: any, code?: string, fallback?: string) => SipErrorPayload;
   attachSessionHandlers: (sessionId: string, session: RTCSession) => void;
   getMaxSessionCount: () => number;
 };
@@ -18,7 +17,6 @@ export class SessionLifecycle {
   private readonly state: SipStateStore;
   private readonly sessionManager: SessionManager;
   private readonly emit: Deps["emit"];
-  private readonly emitError: Deps["emitError"];
   private readonly attachSessionHandlers: Deps["attachSessionHandlers"];
   private readonly getMaxSessionCount: Deps["getMaxSessionCount"];
 
@@ -26,15 +24,18 @@ export class SessionLifecycle {
     this.state = deps.state;
     this.sessionManager = deps.sessionManager;
     this.emit = deps.emit;
-    this.emitError = deps.emitError;
     this.attachSessionHandlers = deps.attachSessionHandlers;
     this.getMaxSessionCount = deps.getMaxSessionCount;
+  }
+
+  public setDebugEnabled(enabled: boolean) {
+    sipDebugLogger.setEnabled(enabled);
   }
 
   handleNewRTCSession(e: RTCSessionEvent) {
     const session = e.session;
     const sessionId = String(
-      (session as any)?.id ?? crypto.randomUUID?.() ?? Date.now()
+      (session as any)?.id ?? crypto.randomUUID?.() ?? Date.now(),
     );
 
     const currentSessions = this.state.getState().sessions;
@@ -47,96 +48,18 @@ export class SessionLifecycle {
       } catch {
         /* ignore termination errors */
       }
-      if (e.originator === "remote") {
-        this.emit("missed", e);
-      } else {
-        this.emitError(
-          "max session count reached",
-          "MAX_SESSIONS_REACHED",
-          "max session count reached"
-        );
-      }
-      return;
     }
 
     const rtc = this.sessionManager.getOrCreateRtc(sessionId, session);
     this.sessionManager.setSession(sessionId, session);
     this.attachSessionHandlers(sessionId, session);
+    this.attachCallStatsLogging(sessionId, session);
 
     if (e.originator === "local" && !rtc.mediaStream) {
-      const maxAttempts = 5;
-      const retryDelayMs = 500;
-      let attempts = 0;
-      let retryScheduled = false;
-      let retryTimer: ReturnType<typeof setTimeout> | null = null;
-      let stopped = false;
-
-      const tryBindFromPc = (pc?: RTCPeerConnection | null) => {
-        if (
-          stopped ||
-          !pc ||
-          this.sessionManager.getRtc(sessionId)?.mediaStream
-        ) {
-          return false;
-        }
-        const audioSender = pc
-          ?.getSenders?.()
-          ?.find((s: RTCRtpSender) => s.track?.kind === "audio");
-        const audioTrack = audioSender?.track;
-        if (!audioTrack) return false;
-        const outgoingStream = new MediaStream([audioTrack]);
-        this.sessionManager.setSessionMedia(sessionId, outgoingStream);
-        return true;
-      };
-
-      const scheduleRetry = (pc?: RTCPeerConnection | null) => {
-        if (stopped || retryScheduled || attempts >= maxAttempts) {
-          session.off?.("peerconnection", onPeer);
-          return;
-        }
-        retryScheduled = true;
-        attempts += 1;
-        retryTimer = setTimeout(() => {
-          retryScheduled = false;
-          retryTimer = null;
-          if (tryBindFromPc(pc)) {
-            session.off?.("peerconnection", onPeer);
-            return;
-          }
-          scheduleRetry(pc);
-        }, retryDelayMs);
-      };
-
-      const onPeer = (data: { peerconnection: RTCPeerConnection }) => {
-        if (stopped) return;
-        if (tryBindFromPc(data.peerconnection)) {
-          session.off?.("peerconnection", onPeer);
-          return;
-        }
-        scheduleRetry(data.peerconnection);
-      };
-
-      const stopRetry = () => {
-        if (stopped) return;
-        stopped = true;
-        if (retryTimer) {
-          clearTimeout(retryTimer);
-          retryTimer = null;
-        }
-        session.off?.("peerconnection", onPeer);
-        session.off?.("ended", stopRetry);
-        session.off?.("failed", stopRetry);
-      };
-
-      const existingPc = (session as RTCSession & {
-        connection?: RTCPeerConnection;
-      })?.connection;
-      if (!tryBindFromPc(existingPc)) {
-        if (existingPc) scheduleRetry(existingPc);
-        session.on?.("peerconnection", onPeer);
-      }
-      session.on?.("ended", stopRetry);
-      session.on?.("failed", stopRetry);
+      this.bindLocalOutgoingAudio(sessionId, session);
+    }
+    if (e.originator === "remote") {
+      this.bindRemoteIncomingAudio(sessionId, session);
     }
 
     holdOtherSessions(this.state, sessionId, (id) => {
@@ -161,5 +84,443 @@ export class SessionLifecycle {
     });
 
     this.emit("newRTCSession", e);
+  }
+
+  private bindLocalOutgoingAudio(sessionId: string, session: RTCSession) {
+    const maxAttempts = 50;
+    const retryDelayMs = 500;
+    let attempts = 0;
+    let retryScheduled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    let exhausted = false;
+    let exhaustedCheckUsed = false;
+    let attachedPc: RTCPeerConnection | null = null;
+    const logLocalAudioError = (
+      message: string,
+      pc?: RTCPeerConnection | null,
+      extra?: Record<string, unknown>,
+    ) => {
+      sipDebugLogger.logLocalAudioError(sessionId, message, pc, extra);
+    };
+
+    const tryBindFromPc = (pc?: RTCPeerConnection | null) => {
+      if (
+        stopped ||
+        !pc ||
+        this.sessionManager.getRtc(sessionId)?.mediaStream
+      ) {
+        return false;
+      }
+      const audioSender = pc
+        ?.getSenders?.()
+        ?.find((s: RTCRtpSender) => s.track?.kind === "audio");
+      const audioTrack = audioSender?.track;
+      if (!audioTrack) {
+        logLocalAudioError(
+          "[sip] outgoing audio bind failed: no audio track",
+          pc,
+        );
+        return false;
+      }
+      const outgoingStream = new MediaStream([audioTrack]);
+      this.sessionManager.setSessionMedia(sessionId, outgoingStream);
+      return true;
+    };
+
+    const onPcStateChange = () => {
+      if (stopped) return;
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (tryBindFromPc(attachedPc)) stopRetry();
+        return;
+      }
+      if (tryBindFromPc(attachedPc)) stopRetry();
+    };
+
+    const attachPcListeners = (pc?: RTCPeerConnection | null) => {
+      if (!pc || pc === attachedPc) return;
+      if (attachedPc) {
+        attachedPc.removeEventListener?.(
+          "signalingstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "connectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "iceconnectionstatechange",
+          onPcStateChange,
+        );
+      }
+      attachedPc = pc;
+      attachedPc.addEventListener?.("signalingstatechange", onPcStateChange);
+      attachedPc.addEventListener?.("connectionstatechange", onPcStateChange);
+      attachedPc.addEventListener?.(
+        "iceconnectionstatechange",
+        onPcStateChange,
+      );
+    };
+
+    const clearRetryTimer = () => {
+      if (!retryTimer) return;
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    };
+
+    const stopRetry = (opts: { keepTrack?: boolean } = {}) => {
+      if (stopped) return;
+      stopped = true;
+      clearRetryTimer();
+      if (attachedPc) {
+        attachedPc.removeEventListener?.(
+          "signalingstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "connectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "iceconnectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc = null;
+      }
+      session.off?.("peerconnection", onPeer);
+      session.off?.("confirmed", onConfirmed);
+      session.off?.("ended", stopRetry);
+      session.off?.("failed", stopRetry);
+    };
+
+    const scheduleRetry = (pc?: RTCPeerConnection | null) => {
+      if (stopped || retryScheduled || exhausted) return;
+      if (attempts >= maxAttempts) {
+        logLocalAudioError(
+          "[sip] outgoing audio bind failed: max retries reached",
+          pc,
+          { attempts },
+        );
+        exhausted = true;
+        clearRetryTimer();
+        return;
+      }
+      if (!pc) {
+        logLocalAudioError(
+          "[sip] outgoing audio bind failed: missing peerconnection",
+          pc,
+        );
+      }
+      retryScheduled = true;
+      attempts += 1;
+      retryTimer = setTimeout(() => {
+        retryScheduled = false;
+        retryTimer = null;
+        if (tryBindFromPc(pc)) {
+          stopRetry();
+          return;
+        }
+        scheduleRetry(pc);
+      }, retryDelayMs);
+    };
+
+    const onPeer = (data: { peerconnection: RTCPeerConnection }) => {
+      if (stopped) return;
+      attachPcListeners(data.peerconnection);
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (tryBindFromPc(data.peerconnection)) stopRetry();
+        return;
+      }
+      if (tryBindFromPc(data.peerconnection)) {
+        stopRetry();
+        return;
+      }
+      scheduleRetry(data.peerconnection);
+    };
+
+    const onConfirmed = () => {
+      if (stopped) return;
+      const currentPc =
+        (session as RTCSession & { connection?: RTCPeerConnection })
+          ?.connection ?? attachedPc;
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (tryBindFromPc(currentPc)) stopRetry();
+        return;
+      }
+      if (tryBindFromPc(currentPc)) {
+        stopRetry();
+        return;
+      }
+      scheduleRetry(currentPc);
+    };
+
+    const existingPc = (
+      session as RTCSession & {
+        connection?: RTCPeerConnection;
+      }
+    )?.connection;
+    if (!tryBindFromPc(existingPc)) {
+      if (existingPc) {
+        attachPcListeners(existingPc);
+        scheduleRetry(existingPc);
+      }
+      session.on?.("peerconnection", onPeer);
+    }
+    session.on?.("confirmed", onConfirmed);
+    session.on?.("ended", (e) => stopRetry());
+    session.on?.("failed", (e) => stopRetry());
+  }
+
+  private bindRemoteIncomingAudio(sessionId: string, session: RTCSession) {
+    const maxAttempts = 50;
+    const retryDelayMs = 500;
+    let attempts = 0;
+    let retryScheduled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    let exhausted = false;
+    let exhaustedCheckUsed = false;
+    let attachedPc: RTCPeerConnection | null = null;
+    let attachedTrack: MediaStreamTrack | null = null;
+    const logRemoteAudioError = (
+      message: string,
+      pc?: RTCPeerConnection | null,
+      extra?: Record<string, unknown>,
+    ) => {
+      sipDebugLogger.logRemoteAudioError(sessionId, message, pc, extra);
+    };
+
+    const logMissingReceiver = (
+      pc?: RTCPeerConnection | null,
+      note?: string,
+    ) => {
+      logRemoteAudioError(
+        "[sip] incoming audio bind failed: no remote track",
+        pc,
+        { note },
+      );
+    };
+
+    const getRemoteAudioTrack = (pc?: RTCPeerConnection | null) => {
+      const receiver = pc
+        ?.getReceivers?.()
+        ?.find((r: RTCRtpReceiver) => r.track?.kind === "audio");
+      return receiver?.track ?? null;
+    };
+
+    const attachTrackListeners = (track?: MediaStreamTrack | null) => {
+      if (!track || track === attachedTrack) return;
+      if (attachedTrack) {
+        attachedTrack.removeEventListener?.("ended", onRemoteEnded);
+        attachedTrack.removeEventListener?.("mute", onRemoteMuted);
+      }
+      attachedTrack = track;
+      attachedTrack.addEventListener?.("ended", onRemoteEnded);
+      attachedTrack.addEventListener?.("mute", onRemoteMuted);
+    };
+
+    const checkRemoteTrack = (pc?: RTCPeerConnection | null) => {
+      if (stopped || !pc) return false;
+      const track = getRemoteAudioTrack(pc);
+      if (!track) return false;
+      attachTrackListeners(track);
+      if (track.readyState !== "live") {
+        logRemoteAudioError("[sip] incoming audio track not live", pc, {
+          trackState: track.readyState,
+        });
+      }
+      return true;
+    };
+
+    const onRemoteEnded = () => {
+      logRemoteAudioError("[sip] incoming audio track ended", attachedPc);
+    };
+
+    const onRemoteMuted = () => {
+      logRemoteAudioError("[sip] incoming audio track muted", attachedPc);
+    };
+
+    const onPcStateChange = () => {
+      if (stopped) return;
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
+        return;
+      }
+      if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
+    };
+
+    const attachPcListeners = (pc?: RTCPeerConnection | null) => {
+      if (!pc || pc === attachedPc) return;
+      if (attachedPc) {
+        attachedPc.removeEventListener?.(
+          "signalingstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "connectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "iceconnectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.("track", onTrack);
+      }
+      attachedPc = pc;
+      attachedPc.addEventListener?.("signalingstatechange", onPcStateChange);
+      attachedPc.addEventListener?.("connectionstatechange", onPcStateChange);
+      attachedPc.addEventListener?.(
+        "iceconnectionstatechange",
+        onPcStateChange,
+      );
+      attachedPc.addEventListener?.("track", onTrack);
+    };
+
+    const clearRetryTimer = () => {
+      if (!retryTimer) return;
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    };
+
+    const stopRetry = (opts: { keepTrack?: boolean } = {}) => {
+      if (stopped) return;
+      stopped = true;
+      clearRetryTimer();
+      if (attachedPc) {
+        attachedPc.removeEventListener?.(
+          "signalingstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "connectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.(
+          "iceconnectionstatechange",
+          onPcStateChange,
+        );
+        attachedPc.removeEventListener?.("track", onTrack);
+        attachedPc = null;
+      }
+      if (attachedTrack && !opts.keepTrack) {
+        attachedTrack.removeEventListener?.("ended", onRemoteEnded);
+        attachedTrack.removeEventListener?.("mute", onRemoteMuted);
+        attachedTrack = null;
+      }
+      session.off?.("peerconnection", onPeer);
+      session.off?.("confirmed", onConfirmed);
+      session.off?.("ended", stopRetry);
+      session.off?.("failed", stopRetry);
+    };
+
+    const scheduleRetry = (pc?: RTCPeerConnection | null) => {
+      if (stopped || retryScheduled || exhausted) return;
+      if (attempts >= maxAttempts) {
+        logRemoteAudioError(
+          "[sip] incoming audio bind failed: max retries reached",
+          pc,
+          { attempts },
+        );
+        exhausted = true;
+        clearRetryTimer();
+        return;
+      }
+      retryScheduled = true;
+      attempts += 1;
+      retryTimer = setTimeout(() => {
+        retryScheduled = false;
+        retryTimer = null;
+        if (checkRemoteTrack(pc)) {
+          stopRetry({ keepTrack: true });
+          return;
+        }
+        if (!pc) logMissingReceiver(pc, "missing peerconnection");
+        scheduleRetry(pc);
+      }, retryDelayMs);
+    };
+
+    const onTrack = () => {
+      if (stopped) return;
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
+        return;
+      }
+      if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
+    };
+
+    const onPeer = (data: { peerconnection: RTCPeerConnection }) => {
+      if (stopped) return;
+      attachPcListeners(data.peerconnection);
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (checkRemoteTrack(data.peerconnection))
+          stopRetry({ keepTrack: true });
+        return;
+      }
+      if (checkRemoteTrack(data.peerconnection)) {
+        stopRetry({ keepTrack: true });
+        return;
+      }
+      scheduleRetry(data.peerconnection);
+    };
+
+    const onConfirmed = () => {
+      if (stopped) return;
+      const currentPc =
+        (session as RTCSession & { connection?: RTCPeerConnection })
+          ?.connection ?? attachedPc;
+      if (exhausted) {
+        if (exhaustedCheckUsed) return;
+        exhaustedCheckUsed = true;
+        if (checkRemoteTrack(currentPc)) stopRetry({ keepTrack: true });
+        return;
+      }
+      if (checkRemoteTrack(currentPc)) {
+        stopRetry({ keepTrack: true });
+        return;
+      }
+      logMissingReceiver(currentPc, "confirmed without remote track");
+      scheduleRetry(currentPc);
+    };
+
+    const existingPc = (
+      session as RTCSession & {
+        connection?: RTCPeerConnection;
+      }
+    )?.connection;
+    if (!checkRemoteTrack(existingPc)) {
+      if (existingPc) {
+        attachPcListeners(existingPc);
+        scheduleRetry(existingPc);
+      }
+      session.on?.("peerconnection", onPeer);
+    }
+    session.on?.("confirmed", onConfirmed);
+    session.on?.("ended", () => stopRetry());
+    session.on?.("failed", () => stopRetry());
+  }
+
+  private attachCallStatsLogging(sessionId: string, session: RTCSession) {
+    const onConfirmed = () => {
+      sipDebugLogger.startCallStatsLogging(sessionId, session);
+    };
+    const onEnd = () => {
+      sipDebugLogger.stopCallStatsLogging(sessionId);
+    };
+
+    session.on?.("confirmed", onConfirmed);
+    session.on?.("ended", onEnd);
+    session.on?.("failed", onEnd);
   }
 }

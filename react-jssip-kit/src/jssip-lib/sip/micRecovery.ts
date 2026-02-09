@@ -1,6 +1,6 @@
-import type { SipErrorPayload } from "../core/sipErrorHandler";
 import type { RTCSession } from "./types";
 import type { WebRTCSessionController } from "./sessionController";
+import { sipDebugLogger } from "./debugLogging";
 
 export type MicrophoneRecoveryOptions = {
   intervalMs?: number;
@@ -12,7 +12,6 @@ type MicRecoveryDeps = {
   getSession: (sessionId: string) => RTCSession | null;
   getSessionState: (sessionId: string) => { muted?: boolean } | undefined;
   setSessionMedia: (sessionId: string, stream: MediaStream) => void;
-  emitError: (raw: any, code?: string, fallback?: string) => SipErrorPayload;
   requestMicrophoneStream: (deviceId?: string) => Promise<MediaStream>;
 };
 
@@ -29,6 +28,7 @@ export class MicRecoveryManager {
     maxRetries: Infinity,
   };
   private active = new Map<string, { stop: () => void }>();
+  private syncedSenderTrackId = new Map<string, string>();
   private readonly deps: MicRecoveryDeps;
 
   constructor(deps: MicRecoveryDeps) {
@@ -80,6 +80,14 @@ export class MicRecoveryManager {
         ?.find((s: RTCRtpSender) => s.track?.kind === "audio");
 
       if (!track && !sender) return;
+      if (!track && sender?.track?.readyState === "live") {
+        const nextId = sender.track.id;
+        const prevId = this.syncedSenderTrackId.get(sessionId);
+        if (prevId === nextId) return;
+        this.syncedSenderTrackId.set(sessionId, nextId);
+        this.deps.setSessionMedia(sessionId, new MediaStream([sender.track]));
+        return;
+      }
 
       if (Date.now() - startedAt < warmupMs) return;
       if (
@@ -95,15 +103,11 @@ export class MicRecoveryManager {
       const senderLive = sender?.track?.readyState === "live";
       if (trackLive && senderLive) return;
 
-      this.deps.emitError(
-        {
-          cause: "microphone dropped",
-          trackLive,
-          senderLive,
-        },
-        "MICROPHONE_DROPPED",
-        "microphone dropped"
-      );
+      sipDebugLogger.logMicRecoveryDrop({
+        sessionId,
+        trackLive,
+        senderLive,
+      });
 
       retries += 1;
       if (trackLive && !senderLive && track) {
@@ -155,11 +159,13 @@ export class MicRecoveryManager {
     if (!entry) return false;
     entry.stop();
     this.active.delete(sessionId);
+    this.syncedSenderTrackId.delete(sessionId);
     return true;
   }
 
   cleanupAll() {
     this.active.forEach((entry) => entry.stop());
     this.active.clear();
+    this.syncedSenderTrackId.clear();
   }
 }

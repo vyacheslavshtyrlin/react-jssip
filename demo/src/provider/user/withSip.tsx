@@ -24,8 +24,8 @@ export default function withSip<P extends object>(
         ...rest,
         sockets: [new WebSocketInterface(socket)],
         register: true,
-        debug: true,
         enableMicRecovery: true,
+        iceCandidateReadyDelayMs: 3000,
       });
 
       return () => sipClient.disconnect();

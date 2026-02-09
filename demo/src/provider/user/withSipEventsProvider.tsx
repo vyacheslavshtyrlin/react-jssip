@@ -2,22 +2,18 @@ import React, { useRef, useState } from "react";
 import {
   useSipSessions,
   useSipEvent,
-  useSipSessionEvent,
   CallPlayer,
 } from "react-jssip-kit";
 import RingDialog from "@/components/ring-dialog";
 import { toast } from "sonner";
 
 const ringSound = "/sounds/ring.mp3";
-const acceptedSound = "/sounds/accepted.mp3";
-const endedSound = "/sounds/error.mp3";
 
 export default function withSipEventsProvider<P extends object>(
   Component: React.ComponentType<P>
 ) {
   return function WithSipEventsComponent(props: P) {
     const { sessions } = useSipSessions();
-    const [incomingSession, setIncomingSession] = useState<string | null>(null);
     const audioRef = useRef<HTMLAudioElement>(null);
 
     const playAudio = (src: string) => {
@@ -39,7 +35,6 @@ export default function withSipEventsProvider<P extends object>(
     ) => {
       stopAudio();
       playAudio(src);
-      if (opts.clearIncoming) setIncomingSession(null);
       if (opts.toastMessage) toast.error(opts.toastMessage);
     };
 
@@ -53,7 +48,6 @@ export default function withSipEventsProvider<P extends object>(
       const originator = (payload as any)?.data?.originator;
 
       if (originator === "remote" && sessionId) {
-        setIncomingSession(String(sessionId));
         playAudio(ringSound);
       }
     });

@@ -16,11 +16,6 @@ import {
 
 import { SipState, SipStatus, CallStatus } from "../core/types";
 import { EventTargetEmitter } from "../core/eventEmitter";
-import {
-  SipErrorHandler,
-  SipErrorFormatter,
-  SipErrorPayload,
-} from "../core/sipErrorHandler";
 import { SipStateStore } from "../core/sipStateStore";
 import { createUAHandlers } from "./handlers/uaHandlers";
 import { createSessionHandlers } from "./handlers/sessionHandlers";
@@ -30,9 +25,6 @@ import { SessionLifecycle } from "./sessionLifecycle";
 import { MicRecoveryManager } from "./micRecovery";
 
 type SipClientOptions = {
-  errorMessages?: Record<string, string>;
-  formatError?: SipErrorFormatter;
-  errorHandler?: SipErrorHandler;
   debug?: boolean | string;
 };
 
@@ -45,9 +37,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   private readonly uaHandlers: Partial<UAEventMap>;
   private readonly uaHandlerKeys: (keyof UAEventMap)[];
   private sessionHandlers = new Map<string, Partial<RTCSessionEventMap>>();
-  private readonly errorHandler: SipErrorHandler;
   private debugPattern?: boolean | string;
   private maxSessionCount = Infinity;
+  private iceCandidateReadyDelayMs?: number;
   private sessionManager = new SessionManager();
   private lifecycle: SessionLifecycle;
   private micRecovery: MicRecoveryManager;
@@ -60,20 +52,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   constructor(options: SipClientOptions = {}) {
     super();
-
-    this.errorHandler =
-      options.errorHandler ??
-      new SipErrorHandler({
-        formatter: options.formatError,
-        messages: options.errorMessages,
-      });
     this.debugPattern = options.debug;
 
     this.uaHandlers = createUAHandlers({
       emitter: this,
       state: this.stateStore,
       cleanupAllSessions: () => this.cleanupAllSessions(),
-      emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
       onNewRTCSession: (e: RTCSessionEvent) => this.onNewRTCSession(e),
     });
 
@@ -83,11 +67,11 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       state: this.stateStore,
       sessionManager: this.sessionManager,
       emit: (event, payload) => this.emit(event as any, payload as any),
-      emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
       attachSessionHandlers: (sessionId, session) =>
         this.attachSessionHandlers(sessionId, session),
       getMaxSessionCount: () => this.maxSessionCount,
     });
+
     this.micRecovery = new MicRecoveryManager({
       getRtc: (sessionId) => this.sessionManager.getRtc(sessionId),
       getSession: (sessionId) => this.sessionManager.getSession(sessionId),
@@ -95,7 +79,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
         this.stateStore.getState().sessions.find((s) => s.id === sessionId),
       setSessionMedia: (sessionId, stream) =>
         this.sessionManager.setSessionMedia(sessionId, stream),
-      emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
       requestMicrophoneStream: (deviceId) =>
         this.requestMicrophoneStreamInternal(deviceId),
     });
@@ -116,10 +99,15 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       micRecoveryIntervalMs,
       micRecoveryMaxRetries,
       maxSessionCount,
+      iceCandidateReadyDelayMs,
       ...uaCfg
     } = config;
     this.maxSessionCount =
       typeof maxSessionCount === "number" ? maxSessionCount : Infinity;
+    this.iceCandidateReadyDelayMs =
+      typeof iceCandidateReadyDelayMs === "number"
+        ? iceCandidateReadyDelayMs
+        : undefined;
     this.micRecovery.configure({
       enabled: Boolean(enableMicRecovery),
       intervalMs: micRecoveryIntervalMs,
@@ -128,6 +116,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     // Config debug has priority, then persisted session flag, then prior setting.
     const debug = cfgDebug ?? this.getPersistedDebug() ?? this.debugPattern;
     this.userAgent.start(uri, password, uaCfg, { debug });
+    this.lifecycle.setDebugEnabled(Boolean(debug));
     this.attachUAHandlers();
     this.attachBeforeUnload();
     this.syncDebugInspector(debug);
@@ -158,11 +147,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
         }
       }
     } catch (e: unknown) {
-      const err = this.emitError(e, "CALL_FAILED", "call failed");
+      console.error(e);
       this.cleanupAllSessions();
-      this.stateStore.batchSet({
-        error: err.cause,
-      });
     }
   }
 
@@ -192,7 +178,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public sendDTMF(
     sessionId: string,
     tones: string | number,
-    options?: DTMFOptions
+    options?: DTMFOptions,
   ) {
     return this.sendDTMFSession(sessionId, tones, options);
   }
@@ -218,6 +204,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public setDebug(debug?: boolean | string) {
     this.debugPattern = debug;
     this.userAgent.setDebug(debug);
+    this.lifecycle.setDebugEnabled(Boolean(debug));
     this.syncDebugInspector(debug);
   }
 
@@ -273,7 +260,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   private createSessionHandlersFor(
     sessionId: string,
-    session: RTCSession
+    session: RTCSession,
   ): Partial<RTCSessionEventMap> {
     const rtc = this.sessionManager.getOrCreateRtc(sessionId, session);
     return createSessionHandlers({
@@ -281,43 +268,15 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       state: this.stateStore,
       rtc,
       detachSessionHandlers: () => this.cleanupSession(sessionId, session),
-      emitError: (raw, code, fallback) => this.emitError(raw, code, fallback),
-      onSessionFailed: (err?: string, event?: RTCSessionEvent) =>
-        this.onSessionFailed(err, event),
       enableMicrophoneRecovery: (confirmedSessionId) =>
         this.micRecovery.enable(confirmedSessionId),
+      iceCandidateReadyDelayMs: this.iceCandidateReadyDelayMs,
       sessionId,
     });
   }
 
   protected onNewRTCSession(e: RTCSessionEvent) {
     this.lifecycle.handleNewRTCSession(e);
-  }
-
-  protected onSessionFailed(error?: string, event?: RTCSessionEvent) {
-    const rawCause = (event as any)?.cause ?? error;
-    const statusCode = (event as any)?.message?.status_code;
-    const statusText = (event as any)?.message?.reason_phrase;
-    const causeText =
-      rawCause ||
-      (statusCode
-        ? `${statusCode}${statusText ? " " + statusText : ""}`
-        : "call failed");
-    this.emitError(
-      { raw: event, cause: rawCause, statusCode, statusText },
-      "SESSION_FAILED",
-      causeText
-    );
-  }
-
-  private emitError(
-    raw: unknown,
-    code?: string,
-    fallback?: string
-  ): SipErrorPayload {
-    const payload = this.errorHandler.format({ raw, code, fallback });
-    this.emit("error", payload);
-    return payload;
   }
 
   private resolveSessionId(sessionId?: string) {
@@ -344,7 +303,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     T extends {
       mediaStream?: MediaStream;
       mediaConstraints?: MediaStreamConstraints;
-    }
+    },
   >(opts: T): T {
     if (opts.mediaStream || opts.mediaConstraints) return opts;
     return { ...opts, mediaConstraints: { audio: true, video: false } } as T;
@@ -400,7 +359,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public sendDTMFSession(
     sessionId: string,
     tones: string | number,
-    options?: DTMFOptions
+    options?: DTMFOptions,
   ) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
@@ -415,7 +374,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public transferSession(
     sessionId: string,
     target: string,
-    options?: ReferOptions
+    options?: ReferOptions,
   ) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
@@ -483,7 +442,10 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
 
   private syncDebugInspector(debug?: boolean | string) {
     if (typeof window === "undefined") return;
-    this.toggleStateLogger(Boolean(debug));
+    const persisted = this.getPersistedDebug();
+    const effectiveDebug = debug ?? persisted ?? this.debugPattern;
+    this.lifecycle.setDebugEnabled(Boolean(effectiveDebug));
+    this.toggleStateLogger(Boolean(effectiveDebug));
 
     const win = window as any;
     const disabledInspector = () => {
@@ -491,8 +453,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       return null;
     };
     win.sipState = () =>
-      debug ? this.stateStore.getState() : disabledInspector();
-    win.sipSessions = () => (debug ? this.getSessions() : disabledInspector());
+      effectiveDebug ? this.stateStore.getState() : disabledInspector();
+    win.sipSessions = () =>
+      effectiveDebug ? this.getSessions() : disabledInspector();
   }
 
   private toggleStateLogger(enabled: boolean) {
@@ -508,26 +471,9 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     console.info("[sip][state]", { initial: true }, prev);
 
     this.stateLogOff = this.stateStore.onChange((next) => {
-      const changes = this.diffState(prev, next);
-      if (changes) {
-        // Log concise diff and the current snapshot for quick inspection.
-        console.info("[sip][state]", changes, next);
-      }
+      console.info("[sip][state]", next);
       prev = next;
     });
-  }
-
-  private diffState(
-    prev: SipState,
-    next: SipState
-  ): Record<string, { from: unknown; to: unknown }> | null {
-    const changed: Record<string, { from: unknown; to: unknown }> = {};
-    for (const key of Object.keys(next) as Array<keyof SipState>) {
-      if (prev[key] !== next[key]) {
-        changed[key as string] = { from: prev[key], to: next[key] };
-      }
-    }
-    return Object.keys(changed).length ? changed : null;
   }
 
   private getPersistedDebug(): boolean | string | undefined {
@@ -542,7 +488,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   private async requestMicrophoneStreamInternal(
-    deviceId?: string
+    deviceId?: string,
   ): Promise<MediaStream> {
     if (
       typeof navigator === "undefined" ||
@@ -558,11 +504,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       return await navigator.mediaDevices.getUserMedia({ audio });
     } catch (err: any) {
       const cause = err?.name || "getUserMedia failed";
-      this.emitError(
-        { raw: err, cause },
-        "MICROPHONE_UNAVAILABLE",
-        "microphone unavailable"
-      );
+      this.emit("getusermediafailed", cause);
       throw err;
     }
   }
@@ -580,8 +522,8 @@ export function createSipEventManager(client: SipClient): SipEventManager {
     onSession(sessionId, event, handler) {
       const session = client.getSession(sessionId);
       if (!session) return () => {};
-      session.on(event as any, handler as any);
-      return () => session.off(event as any, handler as any);
+      session.on(event, handler as any);
+      return () => session.off(event, handler as any);
     },
   };
 }

@@ -10,7 +10,6 @@ import {
 } from "jssip/src/UA";
 
 type UAExtraEvents = {
-  error: { cause: string; code?: string; raw?: any; message?: string };
   missed: IncomingRTCSessionEvent;
 };
 
@@ -87,6 +86,11 @@ export type SipConfiguration = Omit<UAConfiguration, "password" | "uri"> & {
    * Maximum allowed concurrent sessions. Additional sessions are rejected.
    */
   maxSessionCount?: number;
+  /**
+   * Delay before calling event.ready() on ICE candidates (ms).
+   * When set, ICE gathering can be short-circuited for slow connections.
+   */
+  iceCandidateReadyDelayMs?: number;
 };
 
 export type {
