@@ -110,6 +110,9 @@ const { remoteStream, audioTracks } = useSessionMedia(sessionId);
 - Hooks: `useSipKernel`, `useSipState`, `useSipSelector`, `useSipActions`, `useSipEvent`, `useSipSessionEvent`, `useSipSessions`, `useSipSession`, `useActiveSipSession`, `useSessionMedia`.
 - Components: `CallPlayer` (basic remote audio element).
 - Kernel utilities: `createSipKernel`, `createSipClientInstance`, `createSipEventManager`.
+- Kernel commands include:
+  - Call/session: `call`, `answer`, `hangup`, `hangupAll`, `toggleMute`, `toggleHold`, `sendDTMF`, `transfer`, `sendInfo`, `update`, `reinvite`.
+  - UA-level: `sendMessage`, `sendOptions`.
 - JsSIP utility: `WebSocketInterface`.
 
 ## Public API Contract (1.0.0)
@@ -125,15 +128,26 @@ Public and supported:
 - `createSipEventManager()`
 - `SipStatus`, `CallStatus`, `CallDirection`
 - Public types exported from root (`SipKernel`, `SipState`, event/call option types)
+- Public state shape: `SipState = { sipStatus, error, sessions }`
 
 Internal (not part of public contract):
 - Direct imports from `src/core/*`
 - `SipContext` object
+- Internal normalized fields (`sessionsById`, `sessionIds`)
 - Any file not re-exported from package root
 
-## Architecture notes
+## Architecture and Lifecycle
 
-- Module map: `docs/MODULES.md`
+Runtime flow (short):
+1. App creates kernel with `createSipKernel()`.
+2. `SipProvider` injects kernel into React tree.
+3. `commands.connect(...)` starts UA and state transitions.
+4. Session events are projected into public `SipState.sessions`.
+5. Media hooks (`useSessionMedia`) observe peer connection/remote tracks.
+6. `commands.disconnect()` stops UA and performs full cleanup.
+
+Detailed module map and full lifecycle:
+- `docs/MODULES.md`
 
 ## Build
 

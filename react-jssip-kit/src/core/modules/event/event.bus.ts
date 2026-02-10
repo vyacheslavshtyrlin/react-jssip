@@ -33,4 +33,3 @@ export class EventBus<Events extends Record<string, unknown>> {
     this.listeners.clear();
   }
 }
-

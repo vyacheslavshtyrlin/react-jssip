@@ -1,18 +1,26 @@
-﻿import { SipStateStore } from "../state/sip.state.store";
+﻿import type { SipStateStore } from "../state/sip.state.store";
 import { CallStatus } from "../../contracts/state";
-import { SessionManager } from "./session.manager";
-import { holdOtherSessions, upsertSessionState } from "./session.state.projector";
+import type { SessionManager } from "./session.manager";
+import {
+  holdOtherSessions,
+  upsertSessionState,
+} from "./session.state.projector";
 import type {
   JsSIPEventName,
+  JsSIPEventPayload,
   RTCSession,
   RTCSessionEvent,
+  TerminateOptions,
 } from "../../sip/types";
 import { sipDebugLogger } from "../debug/sip-debug.logger";
 
 type Deps = {
   state: SipStateStore;
   sessionManager: SessionManager;
-  emit: <K extends JsSIPEventName>(event: K, payload: any) => void;
+  emit: <K extends JsSIPEventName>(
+    event: K,
+    payload?: JsSIPEventPayload<K>
+  ) => void;
   attachSessionHandlers: (sessionId: string, session: RTCSession) => void;
   getMaxSessionCount: () => number;
 };
@@ -38,17 +46,16 @@ export class SessionLifecycle {
 
   handleNewRTCSession(e: RTCSessionEvent) {
     const session = e.session;
-    const sessionId = String(
-      (session as any)?.id ?? crypto.randomUUID?.() ?? Date.now(),
-    );
+    const sessionId = String(session.id ?? crypto.randomUUID?.() ?? Date.now());
 
     const currentSessions = this.state.getState().sessions;
     if (currentSessions.length >= this.getMaxSessionCount()) {
       try {
-        session.terminate?.({
+        const terminateOptions: TerminateOptions = {
           status_code: 486,
           reason_phrase: "Busy Here",
-        } as any);
+        };
+        session.terminate(terminateOptions);
       } catch {
         /* ignore termination errors */
       }
@@ -96,7 +103,7 @@ export class SessionLifecycle {
     const logLocalAudioError = (
       message: string,
       pc?: RTCPeerConnection | null,
-      extra?: Record<string, unknown>,
+      extra?: Record<string, unknown>
     ) => {
       sipDebugLogger.logLocalAudioError(sessionId, message, pc, extra);
     };
@@ -116,7 +123,7 @@ export class SessionLifecycle {
       if (!audioTrack) {
         logLocalAudioError(
           "[sip] outgoing audio bind failed: no audio track",
-          pc,
+          pc
         );
         return false;
       }
@@ -141,15 +148,15 @@ export class SessionLifecycle {
       if (attachedPc) {
         attachedPc.removeEventListener?.(
           "signalingstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "connectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "iceconnectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
       }
       attachedPc = pc;
@@ -157,7 +164,7 @@ export class SessionLifecycle {
       attachedPc.addEventListener?.("connectionstatechange", onPcStateChange);
       attachedPc.addEventListener?.(
         "iceconnectionstatechange",
-        onPcStateChange,
+        onPcStateChange
       );
     };
 
@@ -167,22 +174,22 @@ export class SessionLifecycle {
       retryTimer = null;
     };
 
-    const stopRetry = (opts: { keepTrack?: boolean } = {}) => {
+    const stopRetry = () => {
       if (stopped) return;
       stopped = true;
       clearRetryTimer();
       if (attachedPc) {
         attachedPc.removeEventListener?.(
           "signalingstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "connectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "iceconnectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc = null;
       }
@@ -198,7 +205,7 @@ export class SessionLifecycle {
         logLocalAudioError(
           "[sip] outgoing audio bind failed: max retries reached",
           pc,
-          { attempts },
+          { attempts }
         );
         exhausted = true;
         clearRetryTimer();
@@ -207,7 +214,7 @@ export class SessionLifecycle {
       if (!pc) {
         logLocalAudioError(
           "[sip] outgoing audio bind failed: missing peerconnection",
-          pc,
+          pc
         );
       }
       retryScheduled = true;
@@ -270,8 +277,8 @@ export class SessionLifecycle {
       session.on?.("peerconnection", onPeer);
     }
     session.on?.("confirmed", onConfirmed);
-    session.on?.("ended", (e) => stopRetry());
-    session.on?.("failed", (e) => stopRetry());
+    session.on?.("ended", () => stopRetry());
+    session.on?.("failed", () => stopRetry());
   }
 
   private bindRemoteIncomingAudio(sessionId: string, session: RTCSession) {
@@ -288,19 +295,19 @@ export class SessionLifecycle {
     const logRemoteAudioError = (
       message: string,
       pc?: RTCPeerConnection | null,
-      extra?: Record<string, unknown>,
+      extra?: Record<string, unknown>
     ) => {
       sipDebugLogger.logRemoteAudioError(sessionId, message, pc, extra);
     };
 
     const logMissingReceiver = (
       pc?: RTCPeerConnection | null,
-      note?: string,
+      note?: string
     ) => {
       logRemoteAudioError(
         "[sip] incoming audio bind failed: no remote track",
         pc,
-        { note },
+        { note }
       );
     };
 
@@ -359,15 +366,15 @@ export class SessionLifecycle {
       if (attachedPc) {
         attachedPc.removeEventListener?.(
           "signalingstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "connectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "iceconnectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.("track", onTrack);
       }
@@ -376,7 +383,7 @@ export class SessionLifecycle {
       attachedPc.addEventListener?.("connectionstatechange", onPcStateChange);
       attachedPc.addEventListener?.(
         "iceconnectionstatechange",
-        onPcStateChange,
+        onPcStateChange
       );
       attachedPc.addEventListener?.("track", onTrack);
     };
@@ -394,15 +401,15 @@ export class SessionLifecycle {
       if (attachedPc) {
         attachedPc.removeEventListener?.(
           "signalingstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "connectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.(
           "iceconnectionstatechange",
-          onPcStateChange,
+          onPcStateChange
         );
         attachedPc.removeEventListener?.("track", onTrack);
         attachedPc = null;
@@ -424,7 +431,7 @@ export class SessionLifecycle {
         logRemoteAudioError(
           "[sip] incoming audio bind failed: max retries reached",
           pc,
-          { attempts },
+          { attempts }
         );
         exhausted = true;
         clearRetryTimer();

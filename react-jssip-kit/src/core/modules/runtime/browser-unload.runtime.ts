@@ -13,4 +13,3 @@ export class BrowserUnloadRuntime {
     this.handler = undefined;
   }
 }
-

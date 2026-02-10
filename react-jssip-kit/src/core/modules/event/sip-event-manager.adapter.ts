@@ -1,17 +1,31 @@
 ﻿import type { SipClient } from "../../client";
-import type { RTCSession, SipEventManager } from "../../sip/types";
+import type {
+  RTCSession,
+  RTCSessionEventMap,
+  SessionEventName,
+  SessionEventPayload,
+  SipEventManager,
+} from "../../sip/types";
 
 function getSessionFromPayload(payload: unknown): RTCSession | null {
   return (payload as { session?: RTCSession } | undefined)?.session ?? null;
 }
 
+function getSessionId(session: RTCSession): string {
+  return String(session.id ?? "");
+}
+
 export function createSipEventManager(client: SipClient): SipEventManager {
   return {
     onUA(event, handler) {
-      return client.on(event, handler as any);
+      return client.on(event, handler);
     },
     onSession(sessionId, event, handler) {
-      const wrapped = handler as any;
+      type SessionListener<K extends SessionEventName> = RTCSessionEventMap[K];
+      const wrapped = ((payload: SessionEventPayload<typeof event>) => {
+        handler(payload);
+      }) as SessionListener<typeof event>;
+
       let attachedSession: RTCSession | null = null;
 
       const detach = () => {
@@ -22,7 +36,7 @@ export function createSipEventManager(client: SipClient): SipEventManager {
 
       const attach = (session: RTCSession | null) => {
         if (!session) return;
-        const id = String((session as any)?.id ?? "");
+        const id = getSessionId(session);
         if (!id || id !== sessionId) return;
         if (attachedSession === session) return;
 

@@ -4,7 +4,7 @@
     "private": false,
     "description": "React hooks and provider around JsSIP client",
     "type": "module",
-    "sideEffects": false,
+    "sideEffects": true,
     "types": "./dist/index.d.ts",
     "main": "./dist/index.cjs",
     "module": "./dist/index.js",
@@ -22,7 +22,11 @@
         "CHANGELOG.md"
     ],
     "scripts": {
-        "build": "tsup"
+        "build": "tsup",
+        "lint": "eslint \"src/**/*.{ts,tsx}\"",
+        "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+        "format": "prettier --write \"{src,docs}/**/*.{ts,tsx,md,json}\"",
+        "format:check": "prettier --check \"{src,docs}/**/*.{ts,tsx,md,json}\""
     },
     "keywords": [
         "react",
@@ -51,7 +55,14 @@
         "react-dom": ">=18 <20"
     },
     "devDependencies": {
+        "@typescript-eslint/eslint-plugin": "^8.25.0",
+        "@typescript-eslint/parser": "^8.25.0",
+        "eslint": "^9.21.0",
+        "eslint-config-prettier": "^10.0.1",
+        "eslint-plugin-react-hooks": "^5.1.0",
+        "globals": "^15.14.0",
         "jssip": "^3.11.1",
+        "prettier": "^3.5.2",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "tsup": "^7.2.0",

@@ -7,9 +7,8 @@ import { CallStatus } from "../core/contracts/state";
 export function useSessionMedia(sessionId?: string): SessionMediaState {
   const { media } = useSipKernel();
   const sessions = useSipSelector((state) => state.sessions);
-  const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(
-    null
-  );
+  const [peerConnection, setPeerConnection] =
+    useState<RTCPeerConnection | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   const resolvedSessionId = useMemo(() => {

@@ -1,6 +1,8 @@
-export type Listener<T = any> = (payload: T) => void;
+export type Listener<T = unknown> = (payload: T) => void;
 
-export class EventTargetEmitter<Events extends Record<string, any> = any> {
+export class EventTargetEmitter<
+  Events extends Record<string, unknown> = Record<string, unknown>,
+> {
   private target = new EventTarget();
 
   on<K extends keyof Events>(event: K, fn: Listener<Events[K]>): () => void {

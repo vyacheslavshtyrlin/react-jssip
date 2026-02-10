@@ -6,13 +6,12 @@ export function CallPlayer({ sessionId }: { sessionId?: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.srcObject = remoteStream;
-    audioRef.current.play?.().catch(() => {});
+    const audioEl = audioRef.current;
+    if (!audioEl) return;
+    audioEl.srcObject = remoteStream;
+    audioEl.play?.().catch(() => {});
     return () => {
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
-      }
+      audioEl.srcObject = null;
     };
   }, [remoteStream]);
 

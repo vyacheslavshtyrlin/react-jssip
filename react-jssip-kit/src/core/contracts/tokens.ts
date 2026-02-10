@@ -5,4 +5,3 @@ export const TOKENS = {
   EventBus: Symbol("EventBus"),
   StateStore: Symbol("StateStore"),
 } as const;
-

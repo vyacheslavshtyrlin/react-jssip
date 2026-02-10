@@ -35,7 +35,10 @@ export function createMediaModule(deps: CreateMediaModuleDeps): MediaModule {
     },
 
     buildRemoteStream(peerConnection: RTCPeerConnection | null) {
-      if (!peerConnection || typeof peerConnection.getReceivers !== "function") {
+      if (
+        !peerConnection ||
+        typeof peerConnection.getReceivers !== "function"
+      ) {
         return null;
       }
 

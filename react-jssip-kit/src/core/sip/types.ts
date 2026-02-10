@@ -1,4 +1,4 @@
-﻿import {
+﻿import type {
   AnswerOptions,
   DTMFOptions,
   EndEvent,
@@ -9,8 +9,8 @@
   RTCSessionEventMap,
   TerminateOptions,
 } from "jssip/src/RTCSession";
-import { MessageEventMap, SendMessageOptions } from "jssip/src/Message";
-import {
+import type { MessageEventMap, SendMessageOptions } from "jssip/src/Message";
+import type {
   UAConfiguration,
   UAEventMap,
   RTCSessionEvent,
@@ -33,8 +33,8 @@ export type SessionEventPayload<K extends SessionEventName> =
 export type JsSIPEventPayload<K extends JsSIPEventName> = K extends UAEventName
   ? UAEventPayload<K>
   : K extends SessionEventName
-  ? SessionEventPayload<K>
-  : never;
+    ? SessionEventPayload<K>
+    : never;
 
 export type JsSIPEventHandler<K extends JsSIPEventName> = (
   payload?: JsSIPEventPayload<K>

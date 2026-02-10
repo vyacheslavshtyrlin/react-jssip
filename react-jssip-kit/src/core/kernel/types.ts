@@ -26,11 +26,7 @@ export interface SipKernel {
     subscribe: (onStoreChange: () => void) => () => void;
   };
   commands: {
-    connect: (
-      uri: string,
-      password: string,
-      config: SipConfiguration
-    ) => void;
+    connect: (uri: string, password: string, config: SipConfiguration) => void;
     disconnect: () => void;
     register: () => void;
     setDebug: (debug?: boolean | string) => void;

@@ -1,5 +1,11 @@
 import { WebRTCSessionController } from "../media/webrtc-session.controller";
-import type { RTCSession } from "../../sip/types";
+import type {
+  AnswerOptions,
+  DTMFOptions,
+  ReferOptions,
+  RTCSession,
+  TerminateOptions,
+} from "../../sip/types";
 
 type SessionEntry = {
   rtc: WebRTCSessionController;
@@ -99,12 +105,12 @@ export class SessionManager {
     this.entries.clear();
   }
 
-  answer(sessionId: string, options: any) {
+  answer(sessionId: string, options: AnswerOptions) {
     const rtc = this.getRtc(sessionId);
     return rtc ? rtc.answer(options) : false;
   }
 
-  hangup(sessionId: string, options?: any) {
+  hangup(sessionId: string, options?: TerminateOptions) {
     const rtc = this.getRtc(sessionId);
     return rtc ? rtc.hangup(options) : false;
   }
@@ -129,12 +135,12 @@ export class SessionManager {
     return rtc ? rtc.unhold() : false;
   }
 
-  sendDTMF(sessionId: string, tones: string | number, options?: any) {
+  sendDTMF(sessionId: string, tones: string | number, options?: DTMFOptions) {
     const rtc = this.getRtc(sessionId);
     return rtc ? rtc.sendDTMF(tones, options) : false;
   }
 
-  transfer(sessionId: string, target: string, options?: any) {
+  transfer(sessionId: string, target: string, options?: ReferOptions) {
     const rtc = this.getRtc(sessionId);
     return rtc ? rtc.transfer(target, options) : false;
   }

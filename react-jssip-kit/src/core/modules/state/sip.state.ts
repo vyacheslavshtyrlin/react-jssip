@@ -1,4 +1,5 @@
-import { InternalSipState, SipStatus } from "../../contracts/state";
+import type { InternalSipState} from "../../contracts/state";
+import { SipStatus } from "../../contracts/state";
 
 export function getInitialSipState(): InternalSipState {
   return {

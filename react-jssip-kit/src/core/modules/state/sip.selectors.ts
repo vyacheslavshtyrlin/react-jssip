@@ -1,4 +1,10 @@
-import { CallStatus, SipSessionState, SipState, SipStatus } from "../../contracts/state";
+import type {
+  SipSessionState,
+  SipState,
+  SipStatus} from "../../contracts/state";
+import {
+  CallStatus
+} from "../../contracts/state";
 
 export function selectSipStatus(state: SipState): SipStatus {
   return state.sipStatus;
@@ -20,5 +26,8 @@ export function selectSessionById(
 }
 
 export function selectActiveSession(state: SipState): SipSessionState | null {
-  return state.sessions.find((session) => session.status === CallStatus.Active) ?? null;
+  return (
+    state.sessions.find((session) => session.status === CallStatus.Active) ??
+    null
+  );
 }

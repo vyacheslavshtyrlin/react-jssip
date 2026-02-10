@@ -23,4 +23,3 @@ export class StateStore<TState> {
     this.listeners.forEach((listener) => listener());
   }
 }
-

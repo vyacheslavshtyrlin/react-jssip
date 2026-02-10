@@ -14,5 +14,7 @@ export interface MediaModule {
     sessionId: string,
     onPeerConnection: (peerConnection: RTCPeerConnection | null) => void
   ): () => void;
-  buildRemoteStream(peerConnection: RTCPeerConnection | null): MediaStream | null;
+  buildRemoteStream(
+    peerConnection: RTCPeerConnection | null
+  ): MediaStream | null;
 }

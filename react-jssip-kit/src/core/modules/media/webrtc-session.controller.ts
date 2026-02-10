@@ -75,14 +75,18 @@ export class WebRTCSessionController {
   }
 
   public mute(): boolean {
-    this.mediaStream?.getAudioTracks().forEach((track) => (track.enabled = false));
+    this.mediaStream
+      ?.getAudioTracks()
+      .forEach((track) => (track.enabled = false));
     return this.currentSession
       ? (this.currentSession.mute({ audio: true }), true)
       : false;
   }
 
   public unmute(): boolean {
-    this.mediaStream?.getAudioTracks().forEach((track) => (track.enabled = true));
+    this.mediaStream
+      ?.getAudioTracks()
+      .forEach((track) => (track.enabled = true));
     return this.currentSession
       ? (this.currentSession.unmute({ audio: true }), true)
       : false;
@@ -120,7 +124,9 @@ export class WebRTCSessionController {
     this.mediaStream.addTrack(nextAudioTrack);
     if (old) this.mediaStream.removeTrack(old);
 
-    const sender = pc.getSenders?.().find((entry) => entry.track?.kind === "audio");
+    const sender = pc
+      .getSenders?.()
+      .find((entry) => entry.track?.kind === "audio");
     if (sender) await sender.replaceTrack(nextAudioTrack);
 
     if (old && old !== nextAudioTrack) old.stop();

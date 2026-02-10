@@ -1,9 +1,9 @@
-import { UAEventMap } from "../../sip/types";
+import type { UAEventMap } from "../../sip/types";
 import { SipStatus } from "../../contracts/state";
-import { SipStateStore } from "../state/sip.state.store";
-import { JsSIPEventMap } from "../../sip/types";
-import { EventTargetEmitter } from "../event/event-target.emitter";
-import {
+import type { SipStateStore } from "../state/sip.state.store";
+import type { JsSIPEventMap } from "../../sip/types";
+import type { EventTargetEmitter } from "../event/event-target.emitter";
+import type {
   IncomingMessageEvent,
   IncomingOptionsEvent,
   OutgoingMessageEvent,

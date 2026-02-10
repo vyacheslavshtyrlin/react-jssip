@@ -1,5 +1,5 @@
 import { SipUserAgent } from "../sip/user-agent";
-import {
+import type {
   AnswerOptions,
   CallOptions,
   DTMFOptions,
@@ -14,7 +14,8 @@ import {
   SipSendOptionsOptions,
   TerminateOptions,
 } from "../sip/types";
-import { SipState, SipStatus } from "../contracts/state";
+import type { SipState} from "../contracts/state";
+import { SipStatus } from "../contracts/state";
 import { EventTargetEmitter } from "../modules/event/event-target.emitter";
 import { SipStateStore } from "../modules/state/sip.state.store";
 import { SipDebugRuntime } from "../modules/debug/sip-debug.runtime";
@@ -28,6 +29,14 @@ import { UaModule } from "../modules/ua/ua.module";
 
 export type SipClientOptions = {
   debug?: boolean | string;
+};
+
+type UAWithSendOptions = {
+  sendOptions: (
+    target: string,
+    body?: string,
+    options?: SipSendOptionsOptions
+  ) => void;
 };
 
 export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
@@ -144,9 +153,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       const ua = this.userAgent.getUA();
       const session = ua?.call(target, callOptions) as RTCSession | undefined;
       if (session && callOptions.mediaStream) {
-        const sessionId = String((session as any)?.id ?? "");
+        const sessionId = String(session.id ?? "");
         if (sessionId) {
-          this.sessionModule.setSessionMedia(sessionId, callOptions.mediaStream);
+          this.sessionModule.setSessionMedia(
+            sessionId,
+            callOptions.mediaStream
+          );
           this.sessionModule.setSession(sessionId, session);
         }
       }
@@ -178,9 +190,11 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     options?: SipSendOptionsOptions
   ) {
     try {
-      const ua = this.userAgent.getUA() as any;
-      if (!ua || typeof ua.sendOptions !== "function") return false;
-      ua.sendOptions(target, body, options);
+      const ua = this.userAgent.getUA();
+      if (!ua) return false;
+      const optionsUa = ua as unknown as UAWithSendOptions;
+      if (typeof optionsUa.sendOptions !== "function") return false;
+      optionsUa.sendOptions(target, body, options);
       return true;
     } catch (e: unknown) {
       console.error(e);
@@ -237,7 +251,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public sendDTMFSession(
     sessionId: string,
     tones: string | number,
-    options?: DTMFOptions,
+    options?: DTMFOptions
   ) {
     return this.sessionModule.sendDTMFSession(sessionId, tones, options);
   }
@@ -245,7 +259,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   public transferSession(
     sessionId: string,
     target: string,
-    options?: ReferOptions,
+    options?: ReferOptions
   ) {
     return this.sessionModule.transferSession(sessionId, target, options);
   }
@@ -256,7 +270,12 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     body?: string,
     options?: ExtraHeaders
   ) {
-    return this.sessionModule.sendInfoSession(sessionId, contentType, body, options);
+    return this.sessionModule.sendInfoSession(
+      sessionId,
+      contentType,
+      body,
+      options
+    );
   }
 
   public updateSession(sessionId: string, options?: RenegotiateOptions) {

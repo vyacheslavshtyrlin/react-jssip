@@ -1,13 +1,7 @@
-import {
-  SipStatus,
-  CallStatus,
-  CallDirection,
-} from "./core/contracts/state";
+import "./core/modules/debug/sip-debugger";
+import { SipStatus, CallStatus, CallDirection } from "./core/contracts/state";
 import { WebSocketInterface } from "jssip";
-import {
-  createSipClientInstance,
-  createSipEventManager,
-} from "./core/client";
+import { createSipClientInstance, createSipEventManager } from "./core/client";
 import { createSipKernel } from "./core/kernel";
 
 export { useSipState } from "./hooks/useSipState";

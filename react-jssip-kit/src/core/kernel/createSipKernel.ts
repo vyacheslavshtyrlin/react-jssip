@@ -1,6 +1,4 @@
-import {
-  createSipClientInstance,
-} from "../client";
+import { createSipClientInstance } from "../client";
 import type {
   AnswerOptions,
   CallOptions,
@@ -34,7 +32,8 @@ export function createSipKernel(): SipKernel {
       disconnect: () => client.disconnect(),
       register: () => client.registerUA(),
       setDebug: (debug?: boolean | string) => client.setDebug(debug),
-      call: (target: string, options?: CallOptions) => client.call(target, options),
+      call: (target: string, options?: CallOptions) =>
+        client.call(target, options),
       sendMessage: (
         target: string,
         body: string,
@@ -76,9 +75,9 @@ export function createSipKernel(): SipKernel {
         client.setSessionMedia(sessionId, stream),
     },
     events: {
-      onUA: (event, handler) => eventManager.onUA(event, handler as any),
+      onUA: (event, handler) => eventManager.onUA(event, handler),
       onSession: (sessionId, event, handler) =>
-        eventManager.onSession(sessionId, event, handler as any),
+        eventManager.onSession(sessionId, event, handler),
     },
     eventManager,
     media,

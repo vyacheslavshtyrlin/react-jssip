@@ -48,7 +48,7 @@ export class UaModule {
     this.detachHandlers();
     this.uaHandlerKeys.forEach((event) => {
       const handler = this.uaHandlers[event];
-      if (handler) ua.on(event, handler as any);
+      if (handler) ua.on(event, handler);
     });
   }
 
@@ -57,7 +57,7 @@ export class UaModule {
     if (!ua) return;
     this.uaHandlerKeys.forEach((event) => {
       const handler = this.uaHandlers[event];
-      if (handler) ua.off(event, handler as any);
+      if (handler) ua.off(event, handler);
     });
   }
 }
@@ -65,4 +65,3 @@ export class UaModule {
 export function createUaHandlers(deps: Parameters<typeof createUAHandlers>[0]) {
   return createUAHandlers(deps);
 }
-

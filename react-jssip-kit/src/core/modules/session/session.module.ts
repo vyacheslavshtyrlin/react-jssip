@@ -14,10 +14,10 @@ import type {
   TerminateOptions,
 } from "../../sip/types";
 import { createSessionHandlers } from "./session.handlers";
-import { SessionManager } from "./session.manager";
+import type { SessionManager } from "./session.manager";
 import { removeSessionState } from "./session.state.projector";
 import { SessionLifecycle } from "./session.lifecycle";
-import { MicRecoveryManager } from "../media/mic-recovery.manager";
+import type { MicRecoveryManager } from "../media/mic-recovery.manager";
 
 type SessionModuleDeps = {
   state: SipStateStore;
@@ -36,7 +36,7 @@ export class SessionModule {
     this.lifecycle = new SessionLifecycle({
       state: deps.state,
       sessionManager: deps.sessionManager,
-      emit: (event, payload) => deps.emitter.emit(event as any, payload as any),
+      emit: (event, payload) => deps.emitter.emit(event, payload),
       attachSessionHandlers: (sessionId, session) =>
         this.attachSessionHandlers(sessionId, session),
       getMaxSessionCount: deps.getMaxSessionCount,
@@ -71,8 +71,8 @@ export class SessionModule {
 
   hangupAll(options?: TerminateOptions) {
     const ids = this.getSessionIds();
-    ids.forEach((id) => this.hangupSession(id, options));
-    return ids.length > 0;
+    if (ids.length === 0) return false;
+    return ids.every((id) => this.hangupSession(id, options));
   }
 
   toggleMuteSession(sessionId?: string) {
@@ -196,7 +196,7 @@ export class SessionModule {
 
     (Object.keys(handlers) as (keyof RTCSessionEventMap)[]).forEach((ev) => {
       const h = handlers[ev];
-      if (h) session.on(ev, h as any);
+      if (h) session.on(ev, h);
     });
   }
 
@@ -205,7 +205,7 @@ export class SessionModule {
     if (!handlers || !session) return;
     (Object.keys(handlers) as (keyof RTCSessionEventMap)[]).forEach((ev) => {
       const h = handlers[ev];
-      if (h) session.off(ev, h as any);
+      if (h) session.off(ev, h);
     });
     this.sessionHandlers.delete(sessionId);
   }
@@ -215,7 +215,9 @@ export class SessionModule {
       session ??
       this.deps.sessionManager.getSession(sessionId) ??
       this.deps.sessionManager.getRtc(sessionId)?.currentSession;
-    this.detachSessionHandlers(sessionId, targetSession as any);
+    if (targetSession) {
+      this.detachSessionHandlers(sessionId, targetSession);
+    }
     this.deps.micRecovery.disable(sessionId);
     this.deps.sessionManager.cleanupSession(sessionId);
     removeSessionState(this.deps.state, sessionId);

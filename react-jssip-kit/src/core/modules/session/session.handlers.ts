@@ -1,16 +1,16 @@
-import { EndEvent, RTCSessionEventMap } from "../../sip/types";
+import type { RTCSessionEventMap } from "../../sip/types";
 import { CallStatus } from "../../contracts/state";
-import { SipStateStore } from "../state/sip.state.store";
-import { WebRTCSessionController } from "../media/webrtc-session.controller";
-import { JsSIPEventMap } from "../../sip/types";
-import { EventTargetEmitter } from "../event/event-target.emitter";
+import type { SipStateStore } from "../state/sip.state.store";
+import type { WebRTCSessionController } from "../media/webrtc-session.controller";
+import type { JsSIPEventMap } from "../../sip/types";
+import type { EventTargetEmitter } from "../event/event-target.emitter";
 import {
   removeSessionState,
   upsertSessionState,
 } from "./session.state.projector";
 import { sipDebugLogger } from "../debug/sip-debug.logger";
 
-import {
+import type {
   IncomingAckEvent,
   IncomingDTMFEvent,
   IncomingEvent,
@@ -194,6 +194,7 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
       rtc.cleanup();
       removeSessionState(state, sessionId);
     },
-    peerconnection: (e: PeerConnectionEvent) => emitter.emit("peerconnection", e),
+    peerconnection: (e: PeerConnectionEvent) =>
+      emitter.emit("peerconnection", e),
   };
 }

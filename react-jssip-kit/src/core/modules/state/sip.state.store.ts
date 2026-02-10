@@ -1,4 +1,4 @@
-import { InternalSipState, SipState } from "../../contracts/state";
+import type { InternalSipState, SipState } from "../../contracts/state";
 import { getInitialSipState, shallowEqual } from "./sip.state";
 
 export type SipStateListener = (state: InternalSipState) => void;
@@ -7,7 +7,13 @@ export type PublicSipStateListener = (state: SipState) => void;
 export class SipStateStore {
   private state: InternalSipState = getInitialSipState();
   private lastState: InternalSipState = getInitialSipState();
+  private publicState: SipState = {
+    sipStatus: this.state.sipStatus,
+    error: this.state.error,
+    sessions: this.state.sessions,
+  };
   private listeners = new Set<SipStateListener>();
+  private publicListeners = new Set<PublicSipStateListener>();
   private pendingState: Partial<InternalSipState> | null = null;
   private updateScheduled = false;
 
@@ -16,11 +22,7 @@ export class SipStateStore {
   }
 
   getPublicState(): SipState {
-    return {
-      sipStatus: this.state.sipStatus,
-      error: this.state.error,
-      sessions: this.state.sessions,
-    };
+    return this.publicState;
   }
 
   onChange(fn: SipStateListener): () => void {
@@ -30,9 +32,8 @@ export class SipStateStore {
   }
 
   onPublicChange(fn: PublicSipStateListener): () => void {
-    const wrapped = () => fn(this.getPublicState());
-    wrapped();
-    return this.onChange(() => wrapped());
+    this.publicListeners.add(fn);
+    return () => this.publicListeners.delete(fn);
   }
 
   subscribe(fn: PublicSipStateListener): () => void {
@@ -54,6 +55,11 @@ export class SipStateStore {
     }
     this.state = next;
     this.lastState = next;
+    this.publicState = {
+      sipStatus: next.sipStatus,
+      error: next.error,
+      sessions: next.sessions,
+    };
     this.emit();
   }
 
@@ -75,5 +81,6 @@ export class SipStateStore {
 
   private emit() {
     for (const fn of this.listeners) fn(this.state);
+    for (const fn of this.publicListeners) fn(this.publicState);
   }
 }

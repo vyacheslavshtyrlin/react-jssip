@@ -1,5 +1,6 @@
-import { CallStatus, SipSessionState } from "../../contracts/state";
-import { SipStateStore } from "../state/sip.state.store";
+import type { SipSessionState } from "../../contracts/state";
+import { CallStatus } from "../../contracts/state";
+import type { SipStateStore } from "../state/sip.state.store";
 
 export function holdOtherSessions(
   state: SipStateStore,
@@ -56,7 +57,9 @@ export function removeSessionState(state: SipStateStore, sessionId: string) {
   const sessionsById = { ...current.sessionsById };
   delete sessionsById[sessionId];
   const sessionIds = current.sessionIds.filter((id) => id !== sessionId);
-  const sessions = current.sessions.filter((session) => session.id !== sessionId);
+  const sessions = current.sessions.filter(
+    (session) => session.id !== sessionId
+  );
 
   state.setState({
     sessions,
