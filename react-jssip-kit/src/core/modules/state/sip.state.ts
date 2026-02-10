@@ -1,6 +1,6 @@
-import { SipState, SipStatus } from "../../contracts/state";
+import { InternalSipState, SipStatus } from "../../contracts/state";
 
-export function getInitialSipState(): SipState {
+export function getInitialSipState(): InternalSipState {
   return {
     sipStatus: SipStatus.Disconnected,
     error: null,

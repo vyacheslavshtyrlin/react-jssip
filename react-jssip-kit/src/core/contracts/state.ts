@@ -34,6 +34,9 @@ export interface SipState {
   sipStatus: SipStatus;
   error: string | null;
   sessions: SipSessionState[];
+}
+
+export interface InternalSipState extends SipState {
   sessionsById: Record<string, SipSessionState>;
   sessionIds: string[];
 }

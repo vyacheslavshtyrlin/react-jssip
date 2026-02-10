@@ -5,8 +5,12 @@ import type {
   AnswerOptions,
   CallOptions,
   DTMFOptions,
+  ExtraHeaders,
+  RenegotiateOptions,
   ReferOptions,
+  SendMessageOptions,
   SipConfiguration,
+  SipSendOptionsOptions,
   TerminateOptions,
 } from "../sip/types";
 import type { SipKernel } from "./types";
@@ -31,6 +35,16 @@ export function createSipKernel(): SipKernel {
       register: () => client.registerUA(),
       setDebug: (debug?: boolean | string) => client.setDebug(debug),
       call: (target: string, options?: CallOptions) => client.call(target, options),
+      sendMessage: (
+        target: string,
+        body: string,
+        options?: SendMessageOptions
+      ) => client.sendMessage(target, body, options),
+      sendOptions: (
+        target: string,
+        body?: string,
+        options?: SipSendOptionsOptions
+      ) => client.sendOptions(target, body, options),
       answer: (sessionId: string, options?: AnswerOptions) =>
         client.answerSession(sessionId, options),
       hangup: (sessionId: string, options?: TerminateOptions) =>
@@ -45,6 +59,16 @@ export function createSipKernel(): SipKernel {
       ) => client.sendDTMFSession(sessionId, tones, options),
       transfer: (sessionId: string, target: string, options?: ReferOptions) =>
         client.transferSession(sessionId, target, options),
+      sendInfo: (
+        sessionId: string,
+        contentType: string,
+        body?: string,
+        options?: ExtraHeaders
+      ) => client.sendInfoSession(sessionId, contentType, body, options),
+      update: (sessionId: string, options?: RenegotiateOptions) =>
+        client.updateSession(sessionId, options),
+      reinvite: (sessionId: string, options?: RenegotiateOptions) =>
+        client.reinviteSession(sessionId, options),
       getSession: (sessionId: string) => client.getSession(sessionId),
       getSessionIds: () => client.getSessionIds(),
       getSessions: () => client.getSessions(),

@@ -19,13 +19,13 @@ export const RingCardContent = ({ session }: Props) => {
   }
 
   const directionIcon =
-    session.direction === "incoming" ? (
+    session.direction === "remote" ? (
       <PhoneIncoming className="h-5 w-5 text-emerald-500" />
     ) : (
       <PhoneOutgoing className="h-5 w-5 text-sky-500" />
     );
 
-  const name = session.direction === "incoming" ? session.from : session.to;
+  const name = session.direction === "remote" ? session.from : session.to;
 
   return (
     <div className="flex items-center justify-between rounded-lg border px-4 py-3 gap-3">

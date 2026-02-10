@@ -4,7 +4,9 @@ import type { EventTargetEmitter } from "../event/event-target.emitter";
 import type {
   AnswerOptions,
   DTMFOptions,
+  ExtraHeaders,
   JsSIPEventMap,
+  RenegotiateOptions,
   ReferOptions,
   RTCSession,
   RTCSessionEvent,
@@ -99,7 +101,7 @@ export class SessionModule {
       this.deps.sessionManager.hold(resolved);
       return true;
     }
-    return true;
+    return false;
   }
 
   sendDTMFSession(
@@ -112,8 +114,9 @@ export class SessionModule {
     const sessionState = this.deps.state.getState().sessionsById[resolved];
     if (sessionState?.status === CallStatus.Active) {
       this.deps.sessionManager.sendDTMF(resolved, tones, options);
+      return true;
     }
-    return true;
+    return false;
   }
 
   transferSession(sessionId: string, target: string, options?: ReferOptions) {
@@ -122,8 +125,45 @@ export class SessionModule {
     const sessionState = this.deps.state.getState().sessionsById[resolved];
     if (sessionState?.status === CallStatus.Active) {
       this.deps.sessionManager.transfer(resolved, target, options);
+      return true;
     }
+    return false;
+  }
+
+  sendInfoSession(
+    sessionId: string,
+    contentType: string,
+    body?: string,
+    options?: ExtraHeaders
+  ) {
+    const resolved = this.resolveExistingSessionId(sessionId);
+    if (!resolved) return false;
+    const sessionState = this.deps.state.getState().sessionsById[resolved];
+    if (
+      sessionState?.status !== CallStatus.Active &&
+      sessionState?.status !== CallStatus.Hold
+    ) {
+      return false;
+    }
+    const session = this.deps.sessionManager.getSession(resolved);
+    if (!session) return false;
+    session.sendInfo(contentType, body, options);
     return true;
+  }
+
+  updateSession(sessionId: string, options?: RenegotiateOptions) {
+    const resolved = this.resolveExistingSessionId(sessionId);
+    if (!resolved) return false;
+    const sessionState = this.deps.state.getState().sessionsById[resolved];
+    if (
+      sessionState?.status !== CallStatus.Active &&
+      sessionState?.status !== CallStatus.Hold
+    ) {
+      return false;
+    }
+    const session = this.deps.sessionManager.getSession(resolved);
+    if (!session) return false;
+    return session.renegotiate(options);
   }
 
   getSession(sessionId: string) {

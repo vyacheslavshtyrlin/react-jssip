@@ -3,7 +3,7 @@ import { RingCardContent } from "./ui/ring-card-contnet";
 import { RingCardFooter } from "./ui/ring-card-footer";
 import { useSipSessions } from "react-jssip-kit";
 
-export default function RingDialog({ open }: { open: boolean }) {
+export default function RingDialog() {
   const { sessions } = useSipSessions();
 
   const activeSessions = sessions.length > 0 ? sessions : [];

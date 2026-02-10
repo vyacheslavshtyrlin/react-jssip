@@ -4,9 +4,7 @@
     "private": false,
     "description": "React hooks and provider around JsSIP client",
     "type": "module",
-    "sideEffects": [
-        "./src/core/modules/debug/sip-debugger.ts"
-    ],
+    "sideEffects": false,
     "types": "./dist/index.d.ts",
     "main": "./dist/index.cjs",
     "module": "./dist/index.js",

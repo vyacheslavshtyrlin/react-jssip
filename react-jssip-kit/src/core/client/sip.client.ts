@@ -3,11 +3,15 @@ import {
   AnswerOptions,
   CallOptions,
   DTMFOptions,
+  ExtraHeaders,
   JsSIPEventMap,
+  RenegotiateOptions,
   ReferOptions,
   RTCSession,
   RTCSessionEvent,
+  SendMessageOptions,
   SipConfiguration,
+  SipSendOptionsOptions,
   TerminateOptions,
 } from "../sip/types";
 import { SipState, SipStatus } from "../contracts/state";
@@ -41,7 +45,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   private debugRuntime: SipDebugRuntime;
 
   public get state(): SipState {
-    return this.stateStore.getState();
+    return this.stateStore.getPublicState();
   }
 
   constructor(options: SipClientOptions = {}) {
@@ -78,8 +82,8 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     });
 
     this.debugRuntime = new SipDebugRuntime({
-      getState: () => this.stateStore.getState(),
-      onChange: (listener) => this.stateStore.onChange(listener),
+      getState: () => this.stateStore.getPublicState(),
+      onChange: (listener) => this.stateStore.onPublicChange(listener),
       getSessions: () => this.getSessions(),
       setDebugEnabled: (enabled) => this.sessionModule.setDebugEnabled(enabled),
     });
@@ -152,6 +156,38 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     }
   }
 
+  public sendMessage(
+    target: string,
+    body: string,
+    options?: SendMessageOptions
+  ) {
+    try {
+      const ua = this.userAgent.getUA();
+      if (!ua) return false;
+      ua.sendMessage(target, body, options);
+      return true;
+    } catch (e: unknown) {
+      console.error(e);
+      return false;
+    }
+  }
+
+  public sendOptions(
+    target: string,
+    body?: string,
+    options?: SipSendOptionsOptions
+  ) {
+    try {
+      const ua = this.userAgent.getUA() as any;
+      if (!ua || typeof ua.sendOptions !== "function") return false;
+      ua.sendOptions(target, body, options);
+      return true;
+    } catch (e: unknown) {
+      console.error(e);
+      return false;
+    }
+  }
+
   public hangupAll(options?: TerminateOptions) {
     const ids = this.getSessionIds();
     ids.forEach((id) => this.hangupSession(id, options));
@@ -159,7 +195,7 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
   }
 
   public onChange(fn: (s: SipState) => void) {
-    return this.stateStore.onChange(fn);
+    return this.stateStore.onPublicChange(fn);
   }
 
   public setDebug(debug?: boolean | string) {
@@ -212,6 +248,23 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
     options?: ReferOptions,
   ) {
     return this.sessionModule.transferSession(sessionId, target, options);
+  }
+
+  public sendInfoSession(
+    sessionId: string,
+    contentType: string,
+    body?: string,
+    options?: ExtraHeaders
+  ) {
+    return this.sessionModule.sendInfoSession(sessionId, contentType, body, options);
+  }
+
+  public updateSession(sessionId: string, options?: RenegotiateOptions) {
+    return this.sessionModule.updateSession(sessionId, options);
+  }
+
+  public reinviteSession(sessionId: string, options?: RenegotiateOptions) {
+    return this.sessionModule.updateSession(sessionId, options);
   }
 
   public setSessionMedia(sessionId: string, stream: MediaStream) {

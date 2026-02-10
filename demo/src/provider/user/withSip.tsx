@@ -1,13 +1,13 @@
 import { useUserData } from "@/hook/useUserData";
 import {
-  createSipClientInstance,
+  createSipKernel,
   SipProvider,
   WebSocketInterface,
 } from "react-jssip-kit";
 
 import { useEffect } from "react";
 
-const sipClient = createSipClientInstance();
+const kernel = createSipKernel();
 
 export default function withSip<P extends object>(
   Component: React.ComponentType<P>
@@ -20,7 +20,7 @@ export default function withSip<P extends object>(
     useEffect(() => {
       const { uri, password, socket, ...rest } = uaConfig;
 
-      sipClient.connect(uri, password, {
+      kernel.commands.connect(uri, password, {
         ...rest,
         sockets: [new WebSocketInterface(socket)],
         register: true,
@@ -28,11 +28,9 @@ export default function withSip<P extends object>(
         iceCandidateReadyDelayMs: 3000,
       });
 
-      return () => sipClient.disconnect();
+      return () => kernel.commands.disconnect();
     }, [uaConfig]);
 
-    return (
-      <SipProvider client={sipClient} children={<Component {...props} />} />
-    );
+    return <SipProvider kernel={kernel} children={<Component {...props} />} />;
   };
 }

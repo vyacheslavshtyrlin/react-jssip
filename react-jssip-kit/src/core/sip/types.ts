@@ -1,33 +1,29 @@
-import {
+﻿import {
   AnswerOptions,
   DTMFOptions,
   EndEvent,
+  ExtraHeaders,
   ReferOptions,
+  RenegotiateOptions,
   RTCSession,
   RTCSessionEventMap,
   TerminateOptions,
 } from "jssip/src/RTCSession";
+import { MessageEventMap, SendMessageOptions } from "jssip/src/Message";
 import {
-  IncomingRTCSessionEvent,
   UAConfiguration,
   UAEventMap,
   RTCSessionEvent,
   CallOptions,
 } from "jssip/src/UA";
 
-type UAExtraEvents = {
-  missed: IncomingRTCSessionEvent;
-};
-
-export type UAEventName = keyof UAEventMap | keyof UAExtraEvents;
+export type UAEventName = keyof UAEventMap;
 export type SessionEventName = keyof RTCSessionEventMap;
 export type JsSIPEventName = UAEventName | SessionEventName;
 
-export type UAEventPayload<K extends UAEventName> = K extends keyof UAEventMap
-  ? Parameters<UAEventMap[K]>[0]
-  : K extends keyof UAExtraEvents
-  ? UAExtraEvents[K]
-  : never;
+export type UAEventPayload<K extends UAEventName> = Parameters<
+  UAEventMap[K]
+>[0];
 
 export type SessionEventPayload<K extends SessionEventName> =
   K extends keyof RTCSessionEventMap
@@ -65,6 +61,11 @@ export type JsSIPEventMap = {
 };
 
 export type SipCallOptions = CallOptions;
+export type SipSendMessageOptions = SendMessageOptions;
+export type SipSendOptionsOptions = ExtraHeaders & {
+  contentType?: string;
+  eventHandlers?: Partial<MessageEventMap>;
+};
 
 export type SipConfiguration = Omit<UAConfiguration, "password" | "uri"> & {
   debug?: boolean | string;
@@ -80,8 +81,11 @@ export type {
   RTCSessionEventMap,
   AnswerOptions,
   DTMFOptions,
+  ExtraHeaders,
   ReferOptions,
-  IncomingRTCSessionEvent,
+  RenegotiateOptions,
+  MessageEventMap,
+  SendMessageOptions,
   UAConfiguration,
   UAEventMap,
   TerminateOptions,

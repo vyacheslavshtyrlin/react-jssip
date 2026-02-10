@@ -33,9 +33,7 @@ const formSchema = z.object({
 export default function UserForm({
   values,
   onSubmit,
-  okText = "Создать",
 }: {
-  okText?: string;
   values?: User;
   onSubmit: (user: User) => void;
 }) {

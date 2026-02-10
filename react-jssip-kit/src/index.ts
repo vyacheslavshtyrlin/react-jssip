@@ -1,4 +1,3 @@
-import "./core/modules/debug/sip-debugger";
 import {
   SipStatus,
   CallStatus,
@@ -15,7 +14,6 @@ export { useSipState } from "./hooks/useSipState";
 export { useSipActions } from "./hooks/useSipActions";
 export { useSipKernel } from "./hooks/useSip";
 export { useSipSelector } from "./hooks/useSipSelector";
-export { useActiveSipSession } from "./hooks/useActiveSipSession";
 export { useSipSession } from "./hooks/useSipSession";
 export { useSipSessions } from "./hooks/useSipSessions";
 export { useSipEvent, useSipSessionEvent } from "./hooks/useSipEvent";
@@ -44,7 +42,10 @@ import type {
   CallOptions,
   AnswerOptions,
   DTMFOptions,
+  ExtraHeaders,
   ReferOptions,
+  RenegotiateOptions,
+  SendMessageOptions,
   JsSIPEventMap,
   JsSIPEventName,
   SessionEventName,
@@ -53,6 +54,7 @@ import type {
   UAEventPayload,
   SipEventHandlers,
   SipEventManager,
+  SipSendOptionsOptions,
   RTCSession,
   TerminateOptions,
   RTCSessionEventMap,
@@ -69,7 +71,10 @@ export type {
   CallOptions,
   AnswerOptions,
   DTMFOptions,
+  ExtraHeaders,
   ReferOptions,
+  RenegotiateOptions,
+  SendMessageOptions,
   JsSIPEventMap,
   JsSIPEventName,
   SessionEventName,
@@ -78,6 +83,7 @@ export type {
   UAEventPayload,
   SipEventHandlers,
   SipEventManager,
+  SipSendOptionsOptions,
   RTCSession,
   TerminateOptions,
   RTCSessionEventMap,

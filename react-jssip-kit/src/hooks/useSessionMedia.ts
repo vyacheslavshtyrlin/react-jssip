@@ -6,14 +6,7 @@ import { CallStatus } from "../core/contracts/state";
 
 export function useSessionMedia(sessionId?: string): SessionMediaState {
   const { media } = useSipKernel();
-  const { sessionIds, sessionsById } = useSipSelector(
-    (state) => ({
-      sessionIds: state.sessionIds,
-      sessionsById: state.sessionsById,
-    }),
-    (prev, next) =>
-      prev.sessionIds === next.sessionIds && prev.sessionsById === next.sessionsById
-  );
+  const sessions = useSipSelector((state) => state.sessions);
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(
     null
   );
@@ -21,11 +14,9 @@ export function useSessionMedia(sessionId?: string): SessionMediaState {
 
   const resolvedSessionId = useMemo(() => {
     if (sessionId) return sessionId;
-    const activeId = sessionIds.find(
-      (id) => sessionsById[id]?.status === CallStatus.Active
-    );
-    return activeId ?? sessionIds[0];
-  }, [sessionId, sessionIds, sessionsById]);
+    const active = sessions.find((s) => s.status === CallStatus.Active);
+    return active?.id ?? sessions[0]?.id;
+  }, [sessionId, sessions]);
 
   const session = useMemo(
     () => (resolvedSessionId ? media.getSession(resolvedSessionId) : null),
@@ -33,8 +24,8 @@ export function useSessionMedia(sessionId?: string): SessionMediaState {
   );
   const sessionState = useMemo(() => {
     if (!resolvedSessionId) return null;
-    return sessionsById[resolvedSessionId] ?? null;
-  }, [sessionsById, resolvedSessionId]);
+    return sessions.find((s) => s.id === resolvedSessionId) ?? null;
+  }, [sessions, resolvedSessionId]);
 
   useEffect(() => {
     if (!resolvedSessionId) {

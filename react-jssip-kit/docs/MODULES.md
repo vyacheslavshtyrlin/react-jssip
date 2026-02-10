@@ -127,11 +127,6 @@ Public type exports are aggregated through `src/core/public-types.ts`.
 - Role:
   - browser lifecycle glue (`beforeunload` handling)
 
-### `core/errors`
-- File: `sip-error-handler.ts`
-- Role:
-  - consistent error formatting and message mapping
-
 ## 4) React bindings
 
 ### Context and Provider

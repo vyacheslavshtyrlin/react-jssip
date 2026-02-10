@@ -4,11 +4,15 @@ import type {
   AnswerOptions,
   CallOptions,
   DTMFOptions,
+  ExtraHeaders,
+  RenegotiateOptions,
   ReferOptions,
+  SendMessageOptions,
   SessionEventName,
   SessionEventPayload,
   SipConfiguration,
   SipEventManager,
+  SipSendOptionsOptions,
   TerminateOptions,
   UAEventName,
   UAEventPayload,
@@ -31,6 +35,16 @@ export interface SipKernel {
     register: () => void;
     setDebug: (debug?: boolean | string) => void;
     call: (target: string, options?: CallOptions) => void;
+    sendMessage: (
+      target: string,
+      body: string,
+      options?: SendMessageOptions
+    ) => boolean;
+    sendOptions: (
+      target: string,
+      body?: string,
+      options?: SipSendOptionsOptions
+    ) => boolean;
     answer: (sessionId: string, options?: AnswerOptions) => boolean;
     hangup: (sessionId: string, options?: TerminateOptions) => boolean;
     hangupAll: (options?: TerminateOptions) => boolean;
@@ -46,6 +60,14 @@ export interface SipKernel {
       target: string,
       options?: ReferOptions
     ) => boolean;
+    sendInfo: (
+      sessionId: string,
+      contentType: string,
+      body?: string,
+      options?: ExtraHeaders
+    ) => boolean;
+    update: (sessionId: string, options?: RenegotiateOptions) => boolean;
+    reinvite: (sessionId: string, options?: RenegotiateOptions) => boolean;
     getSession: SipClient["getSession"];
     getSessionIds: SipClient["getSessionIds"];
     getSessions: SipClient["getSessions"];

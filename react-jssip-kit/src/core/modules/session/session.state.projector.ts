@@ -1,18 +1,6 @@
 import { CallStatus, SipSessionState } from "../../contracts/state";
 import { SipStateStore } from "../state/sip.state.store";
 
-function toSessionMaps(sessions: SipSessionState[]) {
-  const sessionsById: Record<string, SipSessionState> = {};
-  const sessionIds: string[] = [];
-
-  for (const session of sessions) {
-    sessionsById[session.id] = session;
-    sessionIds.push(session.id);
-  }
-
-  return { sessionsById, sessionIds };
-}
-
 export function holdOtherSessions(
   state: SipStateStore,
   sessionId: string,
@@ -46,25 +34,29 @@ export function upsertSessionState(
   };
 
   const nextSession = { ...base, ...partial };
-  const sessions = current.sessionIds.map((id) =>
-    id === sessionId ? nextSession : current.sessionsById[id]
-  );
+  const sessionsById = {
+    ...current.sessionsById,
+    [sessionId]: nextSession,
+  };
+  const sessionIds = existing
+    ? current.sessionIds
+    : [...current.sessionIds, sessionId];
+  const sessions = existing
+    ? current.sessions.map((session) =>
+        session.id === sessionId ? nextSession : session
+      )
+    : [...current.sessions, nextSession];
 
-  if (!existing) {
-    sessions.push(nextSession);
-  }
-
-  const { sessionsById, sessionIds } = toSessionMaps(sessions);
-
-  state.setState({ sessions, sessionsById, sessionIds });
+  state.setState({ sessionsById, sessionIds, sessions });
 }
 
 export function removeSessionState(state: SipStateStore, sessionId: string) {
   const current = state.getState();
-  const sessions = current.sessionIds
-    .filter((id) => id !== sessionId)
-    .map((id) => current.sessionsById[id]);
-  const { sessionsById, sessionIds } = toSessionMaps(sessions);
+  if (!current.sessionsById[sessionId]) return;
+  const sessionsById = { ...current.sessionsById };
+  delete sessionsById[sessionId];
+  const sessionIds = current.sessionIds.filter((id) => id !== sessionId);
+  const sessions = current.sessions.filter((session) => session.id !== sessionId);
 
   state.setState({
     sessions,

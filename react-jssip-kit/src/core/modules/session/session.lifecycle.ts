@@ -1,4 +1,4 @@
-import { SipStateStore } from "../state/sip.state.store";
+﻿import { SipStateStore } from "../state/sip.state.store";
 import { CallStatus } from "../../contracts/state";
 import { SessionManager } from "./session.manager";
 import { holdOtherSessions, upsertSessionState } from "./session.state.projector";
@@ -52,6 +52,7 @@ export class SessionLifecycle {
       } catch {
         /* ignore termination errors */
       }
+      return;
     }
 
     const rtc = this.sessionManager.getOrCreateRtc(sessionId, session);
