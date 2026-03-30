@@ -1,4 +1,4 @@
-import { SipUserAgent } from "../sip/user-agent";
+﻿import { SipUserAgent } from "../sip/user-agent";
 import type {
   AnswerOptions,
   CallOptions,
@@ -14,9 +14,9 @@ import type {
   SipSendOptionsOptions,
   TerminateOptions,
 } from "../sip/types";
-import type { SipState} from "../contracts/state";
+import type { SipState, StateAdapter } from "../contracts/state";
 import { SipStatus } from "../contracts/state";
-import { EventTargetEmitter } from "../modules/event/event-target.emitter";
+import { JssipEventEmitter } from "../modules/event/event-target.emitter";
 import { SipStateStore } from "../modules/state/sip.state.store";
 import { SipDebugRuntime } from "../modules/debug/sip-debug.runtime";
 import { createSipEventManager } from "../modules/event/sip-event-manager.adapter";
@@ -39,9 +39,9 @@ type UAWithSendOptions = {
   ) => void;
 };
 
-export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
+export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
   public readonly userAgent = new SipUserAgent();
-  public readonly stateStore = new SipStateStore();
+  public readonly stateStore: StateAdapter = new SipStateStore();
 
   private readonly uaModule: UaModule;
   private debugPattern?: boolean | string;
@@ -164,7 +164,6 @@ export class SipClient extends EventTargetEmitter<JsSIPEventMap> {
       }
     } catch (e: unknown) {
       console.error(e);
-      this.cleanupAllSessions();
     }
   }
 
@@ -308,3 +307,4 @@ export function createSipClientInstance(options?: SipClientOptions): SipClient {
 }
 
 export { createSipEventManager };
+

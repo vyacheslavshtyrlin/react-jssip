@@ -1,9 +1,9 @@
-import type { RTCSessionEventMap } from "../../sip/types";
+﻿import type { RTCSessionEventMap } from "../../sip/types";
 import { CallStatus } from "../../contracts/state";
-import type { SipStateStore } from "../state/sip.state.store";
+import type { StateAdapter } from "../../contracts/state";
 import type { WebRTCSessionController } from "../media/webrtc-session.controller";
 import type { JsSIPEventMap } from "../../sip/types";
-import type { EventTargetEmitter } from "../event/event-target.emitter";
+import type { JssipEventEmitter } from "../event/event-target.emitter";
 import {
   removeSessionState,
   upsertSessionState,
@@ -23,8 +23,8 @@ import type {
 } from "jssip/src/RTCSession";
 
 type Deps = {
-  emitter: EventTargetEmitter<JsSIPEventMap>;
-  state: SipStateStore;
+  emitter: JssipEventEmitter<JsSIPEventMap>;
+  state: StateAdapter;
   rtc: WebRTCSessionController;
   detachSessionHandlers: () => void;
   enableMicrophoneRecovery?: (sessionId: string) => void;
@@ -153,7 +153,17 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
       emitter.emit("icecandidate", e);
     },
     refer: (e) => emitter.emit("refer", e),
-    replaces: (e) => emitter.emit("replaces", e),
+    replaces: (e) => {
+      emitter.emit("replaces", e);
+      // Auto-accept the replacement: terminates the current session and starts
+      // the new one. State updates flow through the subsequent ended /
+      // newRTCSession events, so no manual state mutation is needed here.
+      try {
+        e?.accept?.();
+      } catch {
+        /* ignore accept errors */
+      }
+    },
     newDTMF: (e: IncomingDTMFEvent | OutgoingDTMFEvent) =>
       emitter.emit("newDTMF", e),
     newInfo: (e: OutgoingInfoEvent | IncomingInfoEvent) =>
@@ -198,3 +208,5 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
       emitter.emit("peerconnection", e),
   };
 }
+
+

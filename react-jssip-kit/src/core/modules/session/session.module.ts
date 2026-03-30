@@ -1,6 +1,6 @@
-import type { SipStateStore } from "../state/sip.state.store";
+﻿import type { StateAdapter } from "../../contracts/state";
 import { CallStatus } from "../../contracts/state";
-import type { EventTargetEmitter } from "../event/event-target.emitter";
+import type { JssipEventEmitter } from "../event/event-target.emitter";
 import type {
   AnswerOptions,
   DTMFOptions,
@@ -15,13 +15,13 @@ import type {
 } from "../../sip/types";
 import { createSessionHandlers } from "./session.handlers";
 import type { SessionManager } from "./session.manager";
-import { removeSessionState } from "./session.state.projector";
+import { clearSessionsState, removeSessionState } from "./session.state.projector";
 import { SessionLifecycle } from "./session.lifecycle";
 import type { MicRecoveryManager } from "../media/mic-recovery.manager";
 
 type SessionModuleDeps = {
-  state: SipStateStore;
-  emitter: EventTargetEmitter<JsSIPEventMap>;
+  state: StateAdapter;
+  emitter: JssipEventEmitter<JsSIPEventMap>;
   sessionManager: SessionManager;
   micRecovery: MicRecoveryManager;
   getMaxSessionCount: () => number;
@@ -182,12 +182,7 @@ export class SessionModule {
     this.deps.sessionManager.cleanupAllSessions();
     this.deps.micRecovery.cleanupAll();
     this.sessionHandlers.clear();
-    this.deps.state.setState({
-      sessions: [],
-      sessionsById: {},
-      sessionIds: [],
-      error: null,
-    });
+    clearSessionsState(this.deps.state);
   }
 
   private attachSessionHandlers(sessionId: string, session: RTCSession) {
@@ -262,3 +257,5 @@ export class SessionModule {
     return this.sessionExists(id) ? id : null;
   }
 }
+
+

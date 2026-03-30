@@ -1,8 +1,8 @@
-import type { UAEventMap } from "../../sip/types";
+﻿import type { UAEventMap } from "../../sip/types";
 import { SipStatus } from "../../contracts/state";
-import type { SipStateStore } from "../state/sip.state.store";
+import type { StateAdapter } from "../../contracts/state";
 import type { JsSIPEventMap } from "../../sip/types";
-import type { EventTargetEmitter } from "../event/event-target.emitter";
+import type { JssipEventEmitter } from "../event/event-target.emitter";
 import type {
   IncomingMessageEvent,
   IncomingOptionsEvent,
@@ -11,8 +11,8 @@ import type {
 } from "jssip/src/UA";
 
 type Deps = {
-  emitter: EventTargetEmitter<JsSIPEventMap>;
-  state: SipStateStore;
+  emitter: JssipEventEmitter<JsSIPEventMap>;
+  state: StateAdapter;
   cleanupAllSessions: () => void;
   onNewRTCSession: UAEventMap["newRTCSession"];
 };
@@ -59,3 +59,4 @@ export function createUAHandlers(deps: Deps): Partial<UAEventMap> {
       emitter.emit("newOptions", e),
   };
 }
+

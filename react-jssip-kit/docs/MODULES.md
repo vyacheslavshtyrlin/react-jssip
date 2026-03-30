@@ -183,12 +183,11 @@ Current shape:
 Files:
 
 1. `event-target.emitter.ts`
-2. `event.bus.ts`
-3. `sip-event-manager.adapter.ts`
+2. `sip-event-manager.adapter.ts`
 
 Role:
 
-1. internal event transport,
+1. internal event transport (single emitter implementation),
 2. consumer-facing event subscription bridge.
 
 Important behavior:

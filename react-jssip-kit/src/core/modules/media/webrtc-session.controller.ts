@@ -66,12 +66,15 @@ export class WebRTCSessionController {
   }
 
   public hangup(options?: TerminateOptions): boolean {
-    return this.currentSession
-      ? (this.currentSession.terminate(
-          options ?? ({ status_code: 486, reason_phrase: "Busy Here" } as any)
-        ),
-        true)
-      : false;
+    if (!this.currentSession) return false;
+    try {
+      this.currentSession.terminate(
+        options ?? ({ status_code: 486, reason_phrase: "Busy Here" } as any)
+      );
+    } catch {
+      // Session may already be terminated at the JsSIP level; ignore.
+    }
+    return true;
   }
 
   public mute(): boolean {

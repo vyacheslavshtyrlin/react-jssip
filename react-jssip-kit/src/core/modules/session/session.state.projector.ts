@@ -1,9 +1,9 @@
 import type { SipSessionState } from "../../contracts/state";
 import { CallStatus } from "../../contracts/state";
-import type { SipStateStore } from "../state/sip.state.store";
+import type { StateAdapter } from "../../contracts/state";
 
 export function holdOtherSessions(
-  state: SipStateStore,
+  state: StateAdapter,
   sessionId: string,
   holdFn: (id: string) => void
 ) {
@@ -18,7 +18,7 @@ export function holdOtherSessions(
 }
 
 export function upsertSessionState(
-  state: SipStateStore,
+  state: StateAdapter,
   sessionId: string,
   partial: Partial<SipSessionState>
 ) {
@@ -51,7 +51,7 @@ export function upsertSessionState(
   state.setState({ sessionsById, sessionIds, sessions });
 }
 
-export function removeSessionState(state: SipStateStore, sessionId: string) {
+export function removeSessionState(state: StateAdapter, sessionId: string) {
   const current = state.getState();
   if (!current.sessionsById[sessionId]) return;
   const sessionsById = { ...current.sessionsById };
@@ -65,6 +65,15 @@ export function removeSessionState(state: SipStateStore, sessionId: string) {
     sessions,
     sessionsById,
     sessionIds,
+    error: null,
+  });
+}
+
+export function clearSessionsState(state: StateAdapter) {
+  state.setState({
+    sessions: [],
+    sessionsById: {},
+    sessionIds: [],
     error: null,
   });
 }

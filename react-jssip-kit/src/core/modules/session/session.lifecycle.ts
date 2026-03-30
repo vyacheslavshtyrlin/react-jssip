@@ -1,4 +1,4 @@
-﻿import type { SipStateStore } from "../state/sip.state.store";
+import type { StateAdapter } from "../../contracts/state";
 import { CallStatus } from "../../contracts/state";
 import type { SessionManager } from "./session.manager";
 import {
@@ -13,9 +13,10 @@ import type {
   TerminateOptions,
 } from "../../sip/types";
 import { sipDebugLogger } from "../debug/sip-debug.logger";
+import { createAudioBindRetry } from "./audio-bind.retry";
 
 type Deps = {
-  state: SipStateStore;
+  state: StateAdapter;
   sessionManager: SessionManager;
   emit: <K extends JsSIPEventName>(
     event: K,
@@ -26,7 +27,7 @@ type Deps = {
 };
 
 export class SessionLifecycle {
-  private readonly state: SipStateStore;
+  private readonly state: StateAdapter;
   private readonly sessionManager: SessionManager;
   private readonly emit: Deps["emit"];
   private readonly attachSessionHandlers: Deps["attachSessionHandlers"];
@@ -91,428 +92,118 @@ export class SessionLifecycle {
   }
 
   private bindLocalOutgoingAudio(sessionId: string, session: RTCSession) {
-    const maxAttempts = 50;
-    const retryDelayMs = 500;
-    let attempts = 0;
-    let retryScheduled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let stopped = false;
-    let exhausted = false;
-    let exhaustedCheckUsed = false;
-    let attachedPc: RTCPeerConnection | null = null;
-    const logLocalAudioError = (
-      message: string,
-      pc?: RTCPeerConnection | null,
-      extra?: Record<string, unknown>
-    ) => {
-      sipDebugLogger.logLocalAudioError(sessionId, message, pc, extra);
-    };
-
-    const tryBindFromPc = (pc?: RTCPeerConnection | null) => {
-      if (
-        stopped ||
-        !pc ||
-        this.sessionManager.getRtc(sessionId)?.mediaStream
-      ) {
-        return false;
-      }
-      const audioSender = pc
-        ?.getSenders?.()
-        ?.find((s: RTCRtpSender) => s.track?.kind === "audio");
-      const audioTrack = audioSender?.track;
-      if (!audioTrack) {
-        logLocalAudioError(
-          "[sip] outgoing audio bind failed: no audio track",
-          pc
-        );
-        return false;
-      }
-      const outgoingStream = new MediaStream([audioTrack]);
-      this.sessionManager.setSessionMedia(sessionId, outgoingStream);
-      return true;
-    };
-
-    const onPcStateChange = () => {
-      if (stopped) return;
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (tryBindFromPc(attachedPc)) stopRetry();
-        return;
-      }
-      if (tryBindFromPc(attachedPc)) stopRetry();
-    };
-
-    const attachPcListeners = (pc?: RTCPeerConnection | null) => {
-      if (!pc || pc === attachedPc) return;
-      if (attachedPc) {
-        attachedPc.removeEventListener?.(
-          "signalingstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "connectionstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "iceconnectionstatechange",
-          onPcStateChange
-        );
-      }
-      attachedPc = pc;
-      attachedPc.addEventListener?.("signalingstatechange", onPcStateChange);
-      attachedPc.addEventListener?.("connectionstatechange", onPcStateChange);
-      attachedPc.addEventListener?.(
-        "iceconnectionstatechange",
-        onPcStateChange
-      );
-    };
-
-    const clearRetryTimer = () => {
-      if (!retryTimer) return;
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    };
-
-    const stopRetry = () => {
-      if (stopped) return;
-      stopped = true;
-      clearRetryTimer();
-      if (attachedPc) {
-        attachedPc.removeEventListener?.(
-          "signalingstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "connectionstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "iceconnectionstatechange",
-          onPcStateChange
-        );
-        attachedPc = null;
-      }
-      session.off?.("peerconnection", onPeer);
-      session.off?.("confirmed", onConfirmed);
-      session.off?.("ended", stopRetry);
-      session.off?.("failed", stopRetry);
-    };
-
-    const scheduleRetry = (pc?: RTCPeerConnection | null) => {
-      if (stopped || retryScheduled || exhausted) return;
-      if (attempts >= maxAttempts) {
-        logLocalAudioError(
+    createAudioBindRetry({
+      session,
+      tryBind: (pc) => {
+        // Already bound externally or from a previous attempt — signal success.
+        if (this.sessionManager.getRtc(sessionId)?.mediaStream) return true;
+        if (!pc) return false;
+        const audioSender = pc
+          .getSenders?.()
+          ?.find((s: RTCRtpSender) => s.track?.kind === "audio");
+        const audioTrack = audioSender?.track;
+        if (!audioTrack) {
+          sipDebugLogger.logLocalAudioError(
+            sessionId,
+            "[sip] outgoing audio bind failed: no audio track",
+            pc
+          );
+          return false;
+        }
+        const outgoingStream = new MediaStream([audioTrack]);
+        this.sessionManager.setSessionMedia(sessionId, outgoingStream);
+        return true;
+      },
+      onExhausted: (pc, attempts) => {
+        sipDebugLogger.logLocalAudioError(
+          sessionId,
           "[sip] outgoing audio bind failed: max retries reached",
           pc,
           { attempts }
         );
-        exhausted = true;
-        clearRetryTimer();
-        return;
-      }
-      if (!pc) {
-        logLocalAudioError(
-          "[sip] outgoing audio bind failed: missing peerconnection",
-          pc
-        );
-      }
-      retryScheduled = true;
-      attempts += 1;
-      retryTimer = setTimeout(() => {
-        retryScheduled = false;
-        retryTimer = null;
-        if (tryBindFromPc(pc)) {
-          stopRetry();
-          return;
-        }
-        scheduleRetry(pc);
-      }, retryDelayMs);
-    };
-
-    const onPeer = (data: { peerconnection: RTCPeerConnection }) => {
-      if (stopped) return;
-      attachPcListeners(data.peerconnection);
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (tryBindFromPc(data.peerconnection)) stopRetry();
-        return;
-      }
-      if (tryBindFromPc(data.peerconnection)) {
-        stopRetry();
-        return;
-      }
-      scheduleRetry(data.peerconnection);
-    };
-
-    const onConfirmed = () => {
-      if (stopped) return;
-      const currentPc =
-        (session as RTCSession & { connection?: RTCPeerConnection })
-          ?.connection ?? attachedPc;
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (tryBindFromPc(currentPc)) stopRetry();
-        return;
-      }
-      if (tryBindFromPc(currentPc)) {
-        stopRetry();
-        return;
-      }
-      scheduleRetry(currentPc);
-    };
-
-    const existingPc = (
-      session as RTCSession & {
-        connection?: RTCPeerConnection;
-      }
-    )?.connection;
-    if (!tryBindFromPc(existingPc)) {
-      if (existingPc) {
-        attachPcListeners(existingPc);
-        scheduleRetry(existingPc);
-      }
-      session.on?.("peerconnection", onPeer);
-    }
-    session.on?.("confirmed", onConfirmed);
-    session.on?.("ended", () => stopRetry());
-    session.on?.("failed", () => stopRetry());
+      },
+    });
   }
 
   private bindRemoteIncomingAudio(sessionId: string, session: RTCSession) {
-    const maxAttempts = 50;
-    const retryDelayMs = 500;
-    let attempts = 0;
-    let retryScheduled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let stopped = false;
-    let exhausted = false;
-    let exhaustedCheckUsed = false;
-    let attachedPc: RTCPeerConnection | null = null;
     let attachedTrack: MediaStreamTrack | null = null;
-    const logRemoteAudioError = (
-      message: string,
-      pc?: RTCPeerConnection | null,
-      extra?: Record<string, unknown>
-    ) => {
-      sipDebugLogger.logRemoteAudioError(sessionId, message, pc, extra);
-    };
-
-    const logMissingReceiver = (
-      pc?: RTCPeerConnection | null,
-      note?: string
-    ) => {
-      logRemoteAudioError(
-        "[sip] incoming audio bind failed: no remote track",
-        pc,
-        { note }
-      );
-    };
-
-    const getRemoteAudioTrack = (pc?: RTCPeerConnection | null) => {
-      const receiver = pc
-        ?.getReceivers?.()
-        ?.find((r: RTCRtpReceiver) => r.track?.kind === "audio");
-      return receiver?.track ?? null;
-    };
-
-    const attachTrackListeners = (track?: MediaStreamTrack | null) => {
-      if (!track || track === attachedTrack) return;
-      if (attachedTrack) {
-        attachedTrack.removeEventListener?.("ended", onRemoteEnded);
-        attachedTrack.removeEventListener?.("mute", onRemoteMuted);
-      }
-      attachedTrack = track;
-      attachedTrack.addEventListener?.("ended", onRemoteEnded);
-      attachedTrack.addEventListener?.("mute", onRemoteMuted);
-    };
-
-    const checkRemoteTrack = (pc?: RTCPeerConnection | null) => {
-      if (stopped || !pc) return false;
-      const track = getRemoteAudioTrack(pc);
-      if (!track) return false;
-      attachTrackListeners(track);
-      if (track.readyState !== "live") {
-        logRemoteAudioError("[sip] incoming audio track not live", pc, {
-          trackState: track.readyState,
-        });
-      }
-      return true;
-    };
 
     const onRemoteEnded = () => {
-      logRemoteAudioError("[sip] incoming audio track ended", attachedPc);
-    };
-
-    const onRemoteMuted = () => {
-      logRemoteAudioError("[sip] incoming audio track muted", attachedPc);
-    };
-
-    const onPcStateChange = () => {
-      if (stopped) return;
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
-        return;
-      }
-      if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
-    };
-
-    const attachPcListeners = (pc?: RTCPeerConnection | null) => {
-      if (!pc || pc === attachedPc) return;
-      if (attachedPc) {
-        attachedPc.removeEventListener?.(
-          "signalingstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "connectionstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "iceconnectionstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.("track", onTrack);
-      }
-      attachedPc = pc;
-      attachedPc.addEventListener?.("signalingstatechange", onPcStateChange);
-      attachedPc.addEventListener?.("connectionstatechange", onPcStateChange);
-      attachedPc.addEventListener?.(
-        "iceconnectionstatechange",
-        onPcStateChange
+      sipDebugLogger.logRemoteAudioError(
+        sessionId,
+        "[sip] incoming audio track ended",
+        null
       );
-      attachedPc.addEventListener?.("track", onTrack);
+    };
+    const onRemoteMuted = () => {
+      sipDebugLogger.logRemoteAudioError(
+        sessionId,
+        "[sip] incoming audio track muted",
+        null
+      );
     };
 
-    const clearRetryTimer = () => {
-      if (!retryTimer) return;
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    };
-
-    const stopRetry = (opts: { keepTrack?: boolean } = {}) => {
-      if (stopped) return;
-      stopped = true;
-      clearRetryTimer();
-      if (attachedPc) {
-        attachedPc.removeEventListener?.(
-          "signalingstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "connectionstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.(
-          "iceconnectionstatechange",
-          onPcStateChange
-        );
-        attachedPc.removeEventListener?.("track", onTrack);
-        attachedPc = null;
+    const attachTrackListeners = (track: MediaStreamTrack) => {
+      if (track === attachedTrack) return;
+      if (attachedTrack) {
+        attachedTrack.removeEventListener("ended", onRemoteEnded);
+        attachedTrack.removeEventListener("mute", onRemoteMuted);
       }
-      if (attachedTrack && !opts.keepTrack) {
-        attachedTrack.removeEventListener?.("ended", onRemoteEnded);
-        attachedTrack.removeEventListener?.("mute", onRemoteMuted);
-        attachedTrack = null;
-      }
-      session.off?.("peerconnection", onPeer);
-      session.off?.("confirmed", onConfirmed);
-      session.off?.("ended", stopRetry);
-      session.off?.("failed", stopRetry);
+      attachedTrack = track;
+      track.addEventListener("ended", onRemoteEnded);
+      track.addEventListener("mute", onRemoteMuted);
     };
 
-    const scheduleRetry = (pc?: RTCPeerConnection | null) => {
-      if (stopped || retryScheduled || exhausted) return;
-      if (attempts >= maxAttempts) {
-        logRemoteAudioError(
+    const detachTrackListeners = () => {
+      if (!attachedTrack) return;
+      attachedTrack.removeEventListener("ended", onRemoteEnded);
+      attachedTrack.removeEventListener("mute", onRemoteMuted);
+      attachedTrack = null;
+    };
+
+    createAudioBindRetry({
+      session,
+      listenPcTrackEvent: true,
+      tryBind: (pc) => {
+        if (!pc) return false;
+        const receiver = pc
+          .getReceivers?.()
+          ?.find((r: RTCRtpReceiver) => r.track?.kind === "audio");
+        const track = receiver?.track ?? null;
+        if (!track) return false;
+        attachTrackListeners(track);
+        if (track.readyState !== "live") {
+          sipDebugLogger.logRemoteAudioError(
+            sessionId,
+            "[sip] incoming audio track not live",
+            pc,
+            { trackState: track.readyState }
+          );
+        }
+        return true;
+      },
+      onStop: (bound) => {
+        // Keep track listeners active after successful bind (diagnostic monitoring).
+        // Remove them only on failure / cleanup.
+        if (!bound) detachTrackListeners();
+      },
+      onExhausted: (pc, attempts) => {
+        sipDebugLogger.logRemoteAudioError(
+          sessionId,
           "[sip] incoming audio bind failed: max retries reached",
           pc,
           { attempts }
         );
-        exhausted = true;
-        clearRetryTimer();
-        return;
-      }
-      retryScheduled = true;
-      attempts += 1;
-      retryTimer = setTimeout(() => {
-        retryScheduled = false;
-        retryTimer = null;
-        if (checkRemoteTrack(pc)) {
-          stopRetry({ keepTrack: true });
-          return;
-        }
-        if (!pc) logMissingReceiver(pc, "missing peerconnection");
-        scheduleRetry(pc);
-      }, retryDelayMs);
-    };
-
-    const onTrack = () => {
-      if (stopped) return;
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
-        return;
-      }
-      if (checkRemoteTrack(attachedPc)) stopRetry({ keepTrack: true });
-    };
-
-    const onPeer = (data: { peerconnection: RTCPeerConnection }) => {
-      if (stopped) return;
-      attachPcListeners(data.peerconnection);
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (checkRemoteTrack(data.peerconnection))
-          stopRetry({ keepTrack: true });
-        return;
-      }
-      if (checkRemoteTrack(data.peerconnection)) {
-        stopRetry({ keepTrack: true });
-        return;
-      }
-      scheduleRetry(data.peerconnection);
-    };
-
-    const onConfirmed = () => {
-      if (stopped) return;
-      const currentPc =
-        (session as RTCSession & { connection?: RTCPeerConnection })
-          ?.connection ?? attachedPc;
-      if (exhausted) {
-        if (exhaustedCheckUsed) return;
-        exhaustedCheckUsed = true;
-        if (checkRemoteTrack(currentPc)) stopRetry({ keepTrack: true });
-        return;
-      }
-      if (checkRemoteTrack(currentPc)) {
-        stopRetry({ keepTrack: true });
-        return;
-      }
-      logMissingReceiver(currentPc, "confirmed without remote track");
-      scheduleRetry(currentPc);
-    };
-
-    const existingPc = (
-      session as RTCSession & {
-        connection?: RTCPeerConnection;
-      }
-    )?.connection;
-    if (!checkRemoteTrack(existingPc)) {
-      if (existingPc) {
-        attachPcListeners(existingPc);
-        scheduleRetry(existingPc);
-      }
-      session.on?.("peerconnection", onPeer);
-    }
-    session.on?.("confirmed", onConfirmed);
-    session.on?.("ended", () => stopRetry());
-    session.on?.("failed", () => stopRetry());
+      },
+      onConfirmedMiss: (pc) => {
+        sipDebugLogger.logRemoteAudioError(
+          sessionId,
+          "[sip] incoming audio bind failed: no remote track",
+          pc,
+          { note: "confirmed without remote track" }
+        );
+      },
+    });
   }
 
   private attachCallStatsLogging(sessionId: string, session: RTCSession) {

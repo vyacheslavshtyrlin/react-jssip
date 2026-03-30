@@ -1,12 +1,15 @@
-import type { InternalSipState, SipState } from "../../contracts/state";
-import { getInitialSipState, shallowEqual } from "./sip.state";
+import type {
+  InternalSipState,
+  SipState,
+  StateAdapter,
+} from "../../contracts/state";
+import { getInitialSipState } from "./sip.state";
 
 export type SipStateListener = (state: InternalSipState) => void;
 export type PublicSipStateListener = (state: SipState) => void;
 
-export class SipStateStore {
+export class SipStateStore implements StateAdapter {
   private state: InternalSipState = getInitialSipState();
-  private lastState: InternalSipState = getInitialSipState();
   private publicState: SipState = {
     sipStatus: this.state.sipStatus,
     error: this.state.error,
@@ -27,7 +30,6 @@ export class SipStateStore {
 
   onChange(fn: SipStateListener): () => void {
     this.listeners.add(fn);
-    fn(this.state);
     return () => this.listeners.delete(fn);
   }
 
@@ -46,41 +48,73 @@ export class SipStateStore {
 
   setState(partial: Partial<InternalSipState>) {
     if (!partial || Object.keys(partial).length === 0) return;
-    const next = { ...this.state, ...partial };
-    if (
-      next.sessions === this.lastState.sessions &&
-      shallowEqual(this.lastState, next)
-    ) {
-      return;
-    }
-    this.state = next;
-    this.lastState = next;
-    this.publicState = {
+    const changed: Partial<InternalSipState> = {};
+    let hasChanges = false;
+
+    (Object.keys(partial) as (keyof InternalSipState)[]).forEach((key) => {
+      const nextValue = partial[key];
+      if (Object.is(this.state[key], nextValue)) return;
+      changed[key] = nextValue as never;
+      hasChanges = true;
+    });
+
+    if (!hasChanges) return;
+
+    const next = { ...this.state, ...changed };
+    const nextPublicState: SipState = {
       sipStatus: next.sipStatus,
       error: next.error,
       sessions: next.sessions,
     };
-    this.emit();
+    const publicChanged =
+      this.publicState.sipStatus !== nextPublicState.sipStatus ||
+      this.publicState.error !== nextPublicState.error ||
+      this.publicState.sessions !== nextPublicState.sessions;
+
+    this.state = next;
+    this.publicState = nextPublicState;
+    this.emit(publicChanged);
   }
 
   batchSet(partial: Partial<InternalSipState>) {
-    this.pendingState = { ...this.pendingState, ...partial };
-    if (!this.updateScheduled) {
-      this.updateScheduled = true;
-      queueMicrotask(() => {
-        if (this.pendingState) this.setState(this.pendingState);
-        this.pendingState = null;
-        this.updateScheduled = false;
-      });
-    }
+    if (!partial || Object.keys(partial).length === 0) return;
+
+    const pending = this.pendingState ?? {};
+    let hasChanges = false;
+
+    (Object.keys(partial) as (keyof InternalSipState)[]).forEach((key) => {
+      const nextValue = partial[key];
+      const baseValue =
+        key in pending ? pending[key] : this.state[key];
+      if (Object.is(baseValue, nextValue)) return;
+      pending[key] = nextValue as never;
+      hasChanges = true;
+    });
+
+    if (!hasChanges) return;
+
+    this.pendingState = pending;
+    if (this.updateScheduled) return;
+
+    this.updateScheduled = true;
+    queueMicrotask(() => {
+      const nextPending = this.pendingState;
+      this.pendingState = null;
+      this.updateScheduled = false;
+      if (nextPending) {
+        this.setState(nextPending);
+      }
+    });
   }
 
   reset(overrides: Partial<InternalSipState> = {}) {
     this.setState({ ...getInitialSipState(), ...overrides });
   }
 
-  private emit() {
+  private emit(emitPublic: boolean) {
     for (const fn of this.listeners) fn(this.state);
-    for (const fn of this.publicListeners) fn(this.publicState);
+    if (emitPublic) {
+      for (const fn of this.publicListeners) fn(this.publicState);
+    }
   }
 }

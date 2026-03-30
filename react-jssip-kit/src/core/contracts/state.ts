@@ -41,6 +41,18 @@ export interface InternalSipState extends SipState {
   sessionIds: string[];
 }
 
+export interface StateAdapter {
+  getState(): InternalSipState;
+  getPublicState(): SipState;
+  onChange(fn: (state: InternalSipState) => void): Unsubscribe;
+  onPublicChange(fn: (state: SipState) => void): Unsubscribe;
+  subscribe(fn: (state: SipState) => void): Unsubscribe;
+  subscribeInternal(fn: (state: InternalSipState) => void): Unsubscribe;
+  setState(partial: Partial<InternalSipState>): void;
+  batchSet(partial: Partial<InternalSipState>): void;
+  reset(overrides?: Partial<InternalSipState>): void;
+}
+
 export const SipStatusList = Object.values(SipStatus);
 export const CallStatusList = Object.values(CallStatus);
 

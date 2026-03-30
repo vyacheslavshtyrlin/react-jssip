@@ -1,19 +1,35 @@
 export type Listener<T = unknown> = (payload: T) => void;
 
-export class EventTargetEmitter<
+type ListenerBuckets<Events extends Record<string, unknown>> = {
+  [K in keyof Events]?: Set<Listener<Events[K]>>;
+};
+
+export class JssipEventEmitter<
   Events extends Record<string, unknown> = Record<string, unknown>,
 > {
-  private target = new EventTarget();
+  private listeners: ListenerBuckets<Events> = {};
 
   on<K extends keyof Events>(event: K, fn: Listener<Events[K]>): () => void {
-    const wrapper = (e: Event) => fn((e as CustomEvent<Events[K]>).detail);
-    this.target.addEventListener(event as string, wrapper);
-    return () => this.target.removeEventListener(event as string, wrapper);
+    const bucket = this.listeners[event] ?? new Set<Listener<Events[K]>>();
+    this.listeners[event] = bucket;
+    bucket.add(fn);
+
+    return () => {
+      const current = this.listeners[event];
+      if (!current) return;
+      current.delete(fn);
+      if (current.size === 0) delete this.listeners[event];
+    };
   }
 
   emit<K extends keyof Events>(event: K, payload?: Events[K]): void {
-    this.target.dispatchEvent(
-      new CustomEvent(event as string, { detail: payload })
-    );
+    const bucket = this.listeners[event];
+    if (!bucket || bucket.size === 0) return;
+
+    // Snapshot prevents mutation during emit from affecting iteration order.
+    const snapshot = Array.from(bucket);
+    for (const listener of snapshot) {
+      listener(payload as Events[K]);
+    }
   }
 }
