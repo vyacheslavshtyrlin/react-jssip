@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type {
   SessionEventName,
   SessionEventPayload,
@@ -12,11 +12,13 @@ export function useSipEvent<K extends UAEventName>(
   handler?: (payload?: UAEventPayload<K>) => void
 ) {
   const { events } = useSipKernel();
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
 
   useEffect(() => {
-    if (!handler) return;
-    return events.onUA(event, handler);
-  }, [event, handler, events]);
+    if (!handlerRef.current) return;
+    return events.onUA(event, (...args) => handlerRef.current?.(...args));
+  }, [event, events]);
 }
 
 export function useSipSessionEvent<K extends SessionEventName>(
@@ -25,9 +27,13 @@ export function useSipSessionEvent<K extends SessionEventName>(
   handler?: (payload?: SessionEventPayload<K>) => void
 ) {
   const { events } = useSipKernel();
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
 
   useEffect(() => {
-    if (!handler) return;
-    return events.onSession(sessionId, event, handler);
-  }, [event, handler, sessionId, events]);
+    if (!handlerRef.current) return;
+    return events.onSession(sessionId, event, (...args) =>
+      handlerRef.current?.(...args)
+    );
+  }, [event, sessionId, events]);
 }

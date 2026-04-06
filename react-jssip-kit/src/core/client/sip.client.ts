@@ -15,7 +15,7 @@ import type {
   TerminateOptions,
 } from "../sip/types";
 import type { SipState, StateAdapter } from "../contracts/state";
-import { SipStatus } from "../contracts/state";
+import { CallStatus, SipStatus } from "../contracts/state";
 import { JssipEventEmitter } from "../modules/event/event-target.emitter";
 import { SipStateStore } from "../modules/state/sip.state.store";
 import { SipDebugRuntime } from "../modules/debug/sip-debug.runtime";
@@ -26,6 +26,10 @@ import { SessionManager } from "../modules/session/session.manager";
 import { SessionModule } from "../modules/session/session.module";
 import { createUAHandlers } from "../modules/ua/ua.handlers";
 import { UaModule } from "../modules/ua/ua.module";
+import {
+  ReconnectManager,
+  type ReconnectConfig,
+} from "../modules/runtime/reconnect.manager";
 
 export type SipClientOptions = {
   debug?: boolean | string;
@@ -52,6 +56,14 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
   private micRecovery: MicRecoveryManager;
   private unloadRuntime = new BrowserUnloadRuntime();
   private debugRuntime: SipDebugRuntime;
+  private lastConnectParams: {
+    uri: string;
+    password: string;
+    config: SipConfiguration;
+  } | null = null;
+  private intentionalDisconnect = false;
+  private reconnectConfig: ReconnectConfig | null = null;
+  private reconnectManager: ReconnectManager | null = null;
 
   public get state(): SipState {
     return this.stateStore.getPublicState();
@@ -67,8 +79,9 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
         createUAHandlers({
           emitter: this,
           state: this.stateStore,
-          cleanupAllSessions: () => this.cleanupAllSessions(),
           onNewRTCSession: (e: RTCSessionEvent) => this.onNewRTCSession(e),
+          onDisconnected: () => this._onUADisconnected(),
+          onConnected: () => this._onUAConnected(),
         }),
     });
 
@@ -79,6 +92,8 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
         this.stateStore.getState().sessionsById[sessionId],
       setSessionMedia: (sessionId, stream) =>
         this.sessionManager.setSessionMedia(sessionId, stream),
+      onDrop: (sessionId, trackLive, senderLive) =>
+        this.emit("micDrop", { sessionId, trackLive, senderLive }),
     });
 
     this.sessionModule = new SessionModule({
@@ -103,7 +118,10 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
   }
 
   public connect(uri: string, password: string, config: SipConfiguration) {
-    this.disconnect();
+    this.intentionalDisconnect = false;
+    this.reconnectManager?.cancel();
+    this.reconnectManager = null;
+    this._stopUA();
     this.stateStore.setState({ sipStatus: SipStatus.Connecting });
     const {
       debug: cfgDebug,
@@ -112,8 +130,11 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
       micRecoveryMaxRetries,
       maxSessionCount,
       iceCandidateReadyDelayMs,
+      reconnect,
       ...uaCfg
     } = config;
+    this.lastConnectParams = { uri, password, config };
+    this.reconnectConfig = reconnect?.enabled ? reconnect : null;
     this.maxSessionCount =
       typeof maxSessionCount === "number" ? maxSessionCount : Infinity;
     this.iceCandidateReadyDelayMs =
@@ -141,29 +162,98 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
   }
 
   public disconnect() {
+    this.intentionalDisconnect = true;
+    this.reconnectManager?.cancel();
+    this.reconnectManager = null;
+    this._stopUA();
+    this.stateStore.reset();
+  }
+
+  private _stopUA() {
     this.unloadRuntime.detach();
     this.uaModule.stop();
     this.cleanupAllSessions();
-    this.stateStore.reset();
     this.debugRuntime.cleanup();
   }
 
+  private _onUADisconnected() {
+    this.cleanupAllSessions();
+
+    if (this.intentionalDisconnect) return;
+
+    if (this.reconnectConfig?.enabled) {
+      this.stateStore.setState({
+        sessions: [],
+        sessionsById: {},
+        sessionIds: [],
+        error: null,
+        sipStatus: SipStatus.Reconnecting,
+      });
+
+      if (!this.reconnectManager) {
+        this.reconnectManager = new ReconnectManager(
+          this.reconnectConfig,
+          () => this._doReconnect(),
+          () => this._onReconnectExhausted()
+        );
+        this.reconnectManager.start();
+      } else {
+        this.reconnectManager.scheduleNext();
+      }
+    } else {
+      this.stateStore.reset();
+    }
+  }
+
+  private _onUAConnected() {
+    if (this.reconnectManager?.isActive()) {
+      this.reconnectManager.cancel();
+      this.reconnectManager = null;
+    }
+  }
+
+  private _doReconnect() {
+    if (!this.lastConnectParams) {
+      this.stateStore.reset();
+      return;
+    }
+    const { uri, password, config } = this.lastConnectParams;
+    const { debug: cfgDebug, ...uaCfg } = config;
+    this.stateStore.setState({ sipStatus: SipStatus.Connecting });
+    const debug =
+      cfgDebug ?? this.debugRuntime.getPersistedDebug() ?? this.debugPattern;
+    this.uaModule.start(uri, password, uaCfg, debug);
+    this.unloadRuntime.attach(() => {
+      this.hangupAll();
+      this.disconnect();
+    });
+  }
+
+  private _onReconnectExhausted() {
+    this.reconnectManager = null;
+    this.stateStore.reset();
+  }
+
   public call(target: string, callOptions: CallOptions = {}) {
+    // pendingMedia must be set BEFORE ua.call() because JsSIP fires
+    // newRTCSession synchronously inside ua.call(). By the time ua.call()
+    // returns, handleNewRTCSession has already run and getOrCreateRtc has
+    // already consumed pendingMedia — no post-call patching needed.
+    if (callOptions.mediaStream) {
+      this.sessionModule.setPendingMedia(callOptions.mediaStream);
+    }
     try {
       const ua = this.userAgent.getUA();
-      const session = ua?.call(target, callOptions) as RTCSession | undefined;
-      if (session && callOptions.mediaStream) {
-        const sessionId = String(session.id ?? "");
-        if (sessionId) {
-          this.sessionModule.setSessionMedia(
-            sessionId,
-            callOptions.mediaStream
-          );
-          this.sessionModule.setSession(sessionId, session);
-        }
-      }
+      ua?.call(target, callOptions);
     } catch (e: unknown) {
+      this.sessionModule.setPendingMedia(null);
       console.error(e);
+      // ua.call() fires newRTCSession synchronously before throwing, so a
+      // Dialing session may already be in state. Clean it up to avoid a hang.
+      const state = this.stateStore.getState();
+      state.sessionIds
+        .filter((id) => state.sessionsById[id]?.status === CallStatus.Dialing)
+        .forEach((id) => this.sessionModule.cleanupSessionById(id));
     }
   }
 
@@ -261,6 +351,16 @@ export class SipClient extends JssipEventEmitter<JsSIPEventMap> {
     options?: ReferOptions
   ) {
     return this.sessionModule.transferSession(sessionId, target, options);
+  }
+
+  public attendedTransferSession(
+    sessionId: string,
+    replaceSessionId: string
+  ): boolean {
+    return this.sessionModule.attendedTransferSession(
+      sessionId,
+      replaceSessionId
+    );
   }
 
   public sendInfoSession(

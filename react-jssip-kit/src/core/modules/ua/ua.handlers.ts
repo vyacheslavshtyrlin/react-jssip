@@ -1,4 +1,4 @@
-﻿import type { UAEventMap } from "../../sip/types";
+import type { UAEventMap } from "../../sip/types";
 import { SipStatus } from "../../contracts/state";
 import type { StateAdapter } from "../../contracts/state";
 import type { JsSIPEventMap } from "../../sip/types";
@@ -13,12 +13,13 @@ import type {
 type Deps = {
   emitter: JssipEventEmitter<JsSIPEventMap>;
   state: StateAdapter;
-  cleanupAllSessions: () => void;
   onNewRTCSession: UAEventMap["newRTCSession"];
+  onDisconnected: () => void;
+  onConnected: () => void;
 };
 
 export function createUAHandlers(deps: Deps): Partial<UAEventMap> {
-  const { emitter, state, cleanupAllSessions, onNewRTCSession } = deps;
+  const { emitter, state } = deps;
 
   return {
     connecting: (e) => {
@@ -28,16 +29,17 @@ export function createUAHandlers(deps: Deps): Partial<UAEventMap> {
     connected: (e) => {
       emitter.emit("connected", e);
       state.batchSet({ sipStatus: SipStatus.Connected });
+      deps.onConnected();
     },
     disconnected: (e) => {
       emitter.emit("disconnected", e);
-      cleanupAllSessions();
-      state.reset();
+      deps.onDisconnected();
     },
 
     registered: (e) => {
       emitter.emit("registered", e);
       state.batchSet({ sipStatus: SipStatus.Registered, error: null });
+      deps.onConnected();
     },
     unregistered: (e) => {
       emitter.emit("unregistered", e);
@@ -45,13 +47,12 @@ export function createUAHandlers(deps: Deps): Partial<UAEventMap> {
     },
     registrationFailed: (e) => {
       emitter.emit("registrationFailed", e);
-      cleanupAllSessions();
       state.batchSet({
         sipStatus: SipStatus.RegistrationFailed,
         error: e?.cause || "registration failed",
       });
     },
-    newRTCSession: onNewRTCSession,
+    newRTCSession: deps.onNewRTCSession,
     newMessage: (e: IncomingMessageEvent | OutgoingMessageEvent) =>
       emitter.emit("newMessage", e),
     sipEvent: (e: any) => emitter.emit("sipEvent", e),
@@ -59,4 +60,3 @@ export function createUAHandlers(deps: Deps): Partial<UAEventMap> {
       emitter.emit("newOptions", e),
   };
 }
-

@@ -115,6 +115,13 @@ export class WebRTCSessionController {
       : false;
   }
 
+  public attendedTransfer(replaceSession: RTCSession): boolean {
+    if (!this.currentSession) return false;
+    const target = replaceSession.remote_identity.uri;
+    this.currentSession.refer(target, { replaces: replaceSession });
+    return true;
+  }
+
   public async replaceAudioTrack(
     nextAudioTrack: MediaStreamTrack
   ): Promise<boolean> {

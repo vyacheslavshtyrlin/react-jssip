@@ -28,6 +28,7 @@ type Deps = {
   rtc: WebRTCSessionController;
   detachSessionHandlers: () => void;
   enableMicrophoneRecovery?: (sessionId: string) => void;
+  holdOtherActiveSessions?: () => void;
   iceCandidateReadyDelayMs?: number;
   sessionId: string;
 };
@@ -40,13 +41,30 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
     detachSessionHandlers,
     sessionId,
     iceCandidateReadyDelayMs,
+    holdOtherActiveSessions,
   } = deps;
   let iceReadyCalled = false;
   let iceReadyTimer: ReturnType<typeof setTimeout> | null = null;
+  let sessionEnded = false;
+  let iceFailedEmitted = false;
+  let removeIceFailedListener: (() => void) | null = null;
+
   const clearIceReadyTimer = () => {
     if (!iceReadyTimer) return;
     clearTimeout(iceReadyTimer);
     iceReadyTimer = null;
+  };
+  const cleanupIceFailedListener = () => {
+    removeIceFailedListener?.();
+    removeIceFailedListener = null;
+  };
+  const cleanupSession = () => {
+    sessionEnded = true;
+    clearIceReadyTimer();
+    cleanupIceFailedListener();
+    detachSessionHandlers();
+    rtc.cleanup();
+    removeSessionState(state, sessionId);
   };
   if (typeof iceCandidateReadyDelayMs === "number") {
     sipDebugLogger.logIceReadyConfig(sessionId, iceCandidateReadyDelayMs);
@@ -55,9 +73,18 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
   return {
     progress: (e: IncomingEvent | OutgoingEvent) => {
       emitter.emit("progress", e);
+      if (
+        (e as any).originator === "remote" &&
+        (e as any).response?.body
+      ) {
+        upsertSessionState(state, sessionId, {
+          status: CallStatus.EarlyMedia,
+        });
+      }
     },
     accepted: (e: IncomingEvent | OutgoingEvent) => {
       emitter.emit("accepted", e);
+      holdOtherActiveSessions?.();
       const existing = state.getState().sessionsById[sessionId];
       upsertSessionState(state, sessionId, {
         status: CallStatus.Active,
@@ -71,17 +98,11 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
 
     ended: (e) => {
       emitter.emit("ended", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
     failed: (e) => {
       emitter.emit("failed", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
 
     muted: (e) => {
@@ -98,6 +119,7 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
     },
     unhold: (e) => {
       emitter.emit("unhold", e);
+      holdOtherActiveSessions?.();
       upsertSessionState(state, sessionId, { status: CallStatus.Active });
     },
 
@@ -111,45 +133,36 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
         typeof iceCandidateReadyDelayMs === "number"
           ? iceCandidateReadyDelayMs
           : null;
+
       if (!iceReadyCalled && ready && delayMs != null) {
-        if (
+        const fireReady = (source: "srflx" | "timer" | "immediate") => {
+          iceReadyCalled = true;
+          sipDebugLogger.logIceReady(sessionId, {
+            source,
+            delayMs,
+            candidateType: candidate?.type,
+          });
+          ready();
+        };
+
+        const isSrflx =
           candidate?.type === "srflx" &&
           candidate?.relatedAddress != null &&
-          candidate?.relatedPort != null
-        ) {
-          iceReadyCalled = true;
-          if (iceReadyTimer) {
-            clearTimeout(iceReadyTimer);
-            iceReadyTimer = null;
-          }
-          sipDebugLogger.logIceReady(sessionId, {
-            source: "srflx",
-            delayMs,
-            candidateType: candidate?.type,
-          });
-          ready();
-        } else if (!iceReadyTimer && delayMs > 0) {
+          candidate?.relatedPort != null;
+
+        if (isSrflx) {
+          clearIceReadyTimer();
+          fireReady("srflx");
+        } else if (delayMs === 0) {
+          fireReady("immediate");
+        } else if (!iceReadyTimer) {
           iceReadyTimer = setTimeout(() => {
             iceReadyTimer = null;
-            if (iceReadyCalled) return;
-            iceReadyCalled = true;
-            sipDebugLogger.logIceReady(sessionId, {
-              source: "timer",
-              delayMs,
-              candidateType: candidate?.type,
-            });
-            ready();
+            if (!iceReadyCalled) fireReady("timer");
           }, delayMs);
-        } else if (delayMs === 0) {
-          iceReadyCalled = true;
-          sipDebugLogger.logIceReady(sessionId, {
-            source: "immediate",
-            delayMs,
-            candidateType: candidate?.type,
-          });
-          ready();
         }
       }
+
       emitter.emit("icecandidate", e);
     },
     refer: (e) => emitter.emit("refer", e),
@@ -171,42 +184,39 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
 
     getusermediafailed: (e) => {
       emitter.emit("getusermediafailed", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
     "peerconnection:createofferfailed": (e) => {
       emitter.emit("peerconnection:createofferfailed", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
     "peerconnection:createanswerfailed": (e) => {
       emitter.emit("peerconnection:createanswerfailed", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
     "peerconnection:setlocaldescriptionfailed": (e) => {
       emitter.emit("peerconnection:setlocaldescriptionfailed", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
     "peerconnection:setremotedescriptionfailed": (e) => {
       emitter.emit("peerconnection:setremotedescriptionfailed", e);
-      clearIceReadyTimer();
-      detachSessionHandlers();
-      rtc.cleanup();
-      removeSessionState(state, sessionId);
+      cleanupSession();
     },
-    peerconnection: (e: PeerConnectionEvent) =>
-      emitter.emit("peerconnection", e),
+    peerconnection: (e: PeerConnectionEvent) => {
+      emitter.emit("peerconnection", e);
+      const pc = (e as { peerconnection?: RTCPeerConnection }).peerconnection;
+      if (!pc) return;
+      cleanupIceFailedListener();
+      const onIceStateChange = () => {
+        if (sessionEnded || iceFailedEmitted) return;
+        if (pc.iceConnectionState === "failed") {
+          iceFailedEmitted = true;
+          emitter.emit("sessionIceFailed", { sessionId });
+        }
+      };
+      pc.addEventListener("iceconnectionstatechange", onIceStateChange);
+      removeIceFailedListener = () =>
+        pc.removeEventListener("iceconnectionstatechange", onIceStateChange);
+    },
   };
 }
-
-

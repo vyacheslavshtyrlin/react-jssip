@@ -13,7 +13,6 @@ export const DialerCard = () => {
   const { startCall } = useCallAction();
   const { sipStatus } = useSipState();
 
-  console.log(sipStatus)
 
   useEffect(() => {
     setTimeout(() => {

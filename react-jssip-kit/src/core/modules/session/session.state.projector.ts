@@ -32,6 +32,7 @@ export function upsertSessionState(
     to: null,
     muted: false,
     acceptedAt: null,
+    headers: {},
   };
 
   const nextSession = { ...base, ...partial };
@@ -48,7 +49,7 @@ export function upsertSessionState(
       )
     : [...current.sessions, nextSession];
 
-  state.setState({ sessionsById, sessionIds, sessions });
+  state.batchSet({ sessionsById, sessionIds, sessions });
 }
 
 export function removeSessionState(state: StateAdapter, sessionId: string) {

@@ -1,7 +1,9 @@
 import type {
+  InternalSipState,
   SipSessionState,
   SipState,
-  SipStatus} from "../../contracts/state";
+  SipStatus,
+} from "../../contracts/state";
 import {
   CallStatus
 } from "../../contracts/state";
@@ -30,4 +32,11 @@ export function selectActiveSession(state: SipState): SipSessionState | null {
     state.sessions.find((session) => session.status === CallStatus.Active) ??
     null
   );
+}
+
+export function selectSessionByIdFast(
+  state: InternalSipState,
+  sessionId: string
+): SipSessionState | null {
+  return state.sessionsById[sessionId] ?? null;
 }

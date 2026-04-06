@@ -11,6 +11,8 @@ export type {
   AnswerOptions,
   DTMFOptions,
   ExtraHeaders,
+  MicDropPayload,
+  SessionIceFailedPayload,
   ReferOptions,
   RenegotiateOptions,
   SendMessageOptions,

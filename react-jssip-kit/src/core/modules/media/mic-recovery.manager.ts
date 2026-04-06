@@ -12,6 +12,7 @@ type MicRecoveryDeps = {
   getSession: (sessionId: string) => RTCSession | null;
   getSessionState: (sessionId: string) => { muted?: boolean } | undefined;
   setSessionMedia: (sessionId: string, stream: MediaStream) => void;
+  onDrop: (sessionId: string, trackLive: boolean, senderLive: boolean) => void;
 };
 
 type MicRecoveryConfig = {
@@ -107,6 +108,7 @@ export class MicRecoveryManager {
         trackLive,
         senderLive,
       });
+      this.deps.onDrop(sessionId, trackLive, senderLive);
 
       retries += 1;
       if (trackLive && !senderLive && track) {
@@ -131,10 +133,28 @@ export class MicRecoveryManager {
     };
     pc?.addEventListener?.("iceconnectionstatechange", onIceChange);
 
+    // Immediate dead-track check — bypasses warmup.
+    // Catches tracks that died at or just before confirmed.
+    const rtcNow = this.deps.getRtc(sessionId);
+    const initialTrack = rtcNow?.mediaStream?.getAudioTracks?.()[0] ?? null;
+    if (initialTrack && initialTrack.readyState !== "live") {
+      this.deps.onDrop(sessionId, false, false);
+    }
+
+    // Real-time detection via track.ended — no need to wait for poll interval.
+    const onTrackEnded = () => {
+      if (stopped) return;
+      const sessionState = this.deps.getSessionState(sessionId);
+      if (sessionState?.muted) return;
+      this.deps.onDrop(sessionId, false, false);
+    };
+    initialTrack?.addEventListener?.("ended", onTrackEnded, { once: true });
+
     const stop = () => {
       stopped = true;
       clearInterval(timer);
       pc?.removeEventListener?.("iceconnectionstatechange", onIceChange);
+      initialTrack?.removeEventListener?.("ended", onTrackEnded);
     };
     this.active.set(sessionId, { stop });
     return stop;

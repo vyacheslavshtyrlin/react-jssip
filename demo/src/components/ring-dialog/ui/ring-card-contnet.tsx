@@ -1,4 +1,9 @@
-import type { SipSessionState } from "react-jssip-kit";
+import {
+  useCallQuality,
+  useCallTimer,
+  useSipMessages,
+  type SipSessionState,
+} from "react-jssip-kit";
 import { PhoneIncoming, PhoneOutgoing, UserRound } from "lucide-react";
 import { CallStatusBadge } from "../../dialer/ui/call-status";
 
@@ -7,6 +12,11 @@ type Props = {
 };
 
 export const RingCardContent = ({ session }: Props) => {
+  const call = useCallQuality(session?.id);
+  console.log(call);
+
+  const time = useCallTimer(session?.id);
+
   if (!session) {
     return (
       <div className="flex flex-col w-full gap-4 my-auto items-center">

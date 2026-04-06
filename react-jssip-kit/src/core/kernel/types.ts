@@ -1,10 +1,12 @@
-import type { SipState } from "../contracts/state";
+import type { InternalSipState, SipState } from "../contracts/state";
 import type { SipClient } from "../client";
 import type {
   AnswerOptions,
   CallOptions,
   DTMFOptions,
   ExtraHeaders,
+  MicDropPayload,
+  SessionIceFailedPayload,
   RenegotiateOptions,
   ReferOptions,
   SendMessageOptions,
@@ -22,7 +24,7 @@ import type { MediaModule } from "../modules/media/types";
 export interface SipKernel {
   client: SipClient;
   store: {
-    getState: () => SipState;
+    getState: () => InternalSipState;
     subscribe: (onStoreChange: () => void) => () => void;
   };
   commands: {
@@ -56,6 +58,10 @@ export interface SipKernel {
       target: string,
       options?: ReferOptions
     ) => boolean;
+    attendedTransfer: (
+      sessionId: string,
+      replaceSessionId: string
+    ) => boolean;
     sendInfo: (
       sessionId: string,
       contentType: string,
@@ -79,6 +85,8 @@ export interface SipKernel {
       event: K,
       handler: (payload?: SessionEventPayload<K>) => void
     ) => () => void;
+    onMicDrop: (handler: (payload: MicDropPayload) => void) => () => void;
+    onSessionIceFailed: (handler: (payload: SessionIceFailedPayload) => void) => () => void;
   };
   eventManager: SipEventManager;
   media: MediaModule;

@@ -11,7 +11,14 @@ export { useSipSelector } from "./hooks/useSipSelector";
 export { useSipSession } from "./hooks/useSipSession";
 export { useSipSessions } from "./hooks/useSipSessions";
 export { useSipEvent, useSipSessionEvent } from "./hooks/useSipEvent";
+export { useMicDrop } from "./hooks/useMicDrop";
+export { useSessionIceFailed } from "./hooks/useSessionIceFailed";
 export { useSessionMedia } from "./hooks/useSessionMedia";
+export { useCallTimer } from "./hooks/useCallTimer";
+export { useCallQuality } from "./hooks/useCallQuality";
+export type { CallQuality } from "./hooks/useCallQuality";
+export { useSipMessages } from "./hooks/useSipMessages";
+export type { SipMessage } from "./hooks/useSipMessages";
 export { CallPlayer } from "./components/call-player";
 
 export { SipProvider } from "./provider";
@@ -37,6 +44,8 @@ import type {
   AnswerOptions,
   DTMFOptions,
   ExtraHeaders,
+  MicDropPayload,
+  SessionIceFailedPayload,
   ReferOptions,
   RenegotiateOptions,
   SendMessageOptions,
@@ -66,6 +75,8 @@ export type {
   AnswerOptions,
   DTMFOptions,
   ExtraHeaders,
+  MicDropPayload,
+  SessionIceFailedPayload,
   ReferOptions,
   RenegotiateOptions,
   SendMessageOptions,

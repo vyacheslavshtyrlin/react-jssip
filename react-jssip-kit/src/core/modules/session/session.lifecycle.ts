@@ -50,7 +50,7 @@ export class SessionLifecycle {
     const sessionId = String(session.id ?? crypto.randomUUID?.() ?? Date.now());
 
     const currentSessions = this.state.getState().sessions;
-    if (currentSessions.length >= this.getMaxSessionCount()) {
+    if (e.originator === "remote" && currentSessions.length >= this.getMaxSessionCount()) {
       try {
         const terminateOptions: TerminateOptions = {
           status_code: 486,
@@ -86,6 +86,7 @@ export class SessionLifecycle {
       to: e.request.to.uri.user,
       status:
         e.originator === "remote" ? CallStatus.Ringing : CallStatus.Dialing,
+      headers: this.extractSipHeaders(e.request),
     });
 
     this.emit("newRTCSession", e);
@@ -206,6 +207,8 @@ export class SessionLifecycle {
     });
   }
 
+  private callStatsCleanups = new Map<string, () => void>();
+
   private attachCallStatsLogging(sessionId: string, session: RTCSession) {
     const onConfirmed = () => {
       sipDebugLogger.startCallStatsLogging(sessionId, session);
@@ -217,5 +220,38 @@ export class SessionLifecycle {
     session.on?.("confirmed", onConfirmed);
     session.on?.("ended", onEnd);
     session.on?.("failed", onEnd);
+
+    this.callStatsCleanups.set(sessionId, () => {
+      session.off?.("confirmed", onConfirmed);
+      session.off?.("ended", onEnd);
+      session.off?.("failed", onEnd);
+    });
+  }
+
+  public cleanupCallStats(sessionId: string) {
+    const cleanup = this.callStatsCleanups.get(sessionId);
+    cleanup?.();
+    this.callStatsCleanups.delete(sessionId);
+  }
+
+  public cleanupAllCallStats() {
+    this.callStatsCleanups.forEach((cleanup) => cleanup());
+    this.callStatsCleanups.clear();
+  }
+
+  private extractSipHeaders(request: unknown): Record<string, string> {
+    // JsSIP does not expose a typed headers map — access via cast.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const req = request as any;
+    const headerMap = req?.headers as Record<string, unknown[]> | undefined;
+    if (!headerMap || typeof headerMap !== "object") return {};
+    const result: Record<string, string> = {};
+    for (const name of Object.keys(headerMap)) {
+      const value = req.getHeader?.(name) as string | undefined;
+      if (value != null) {
+        result[name.toLowerCase()] = value;
+      }
+    }
+    return result;
   }
 }

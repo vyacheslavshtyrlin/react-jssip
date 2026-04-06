@@ -19,6 +19,7 @@ export function useSipActions() {
       toggleHold: commands.toggleHold,
       sendDTMF: commands.sendDTMF,
       transfer: commands.transfer,
+      attendedTransfer: commands.attendedTransfer,
       sendInfo: commands.sendInfo,
       update: commands.update,
       reinvite: commands.reinvite,

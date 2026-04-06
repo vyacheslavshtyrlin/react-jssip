@@ -15,7 +15,7 @@ import type {
 } from "../../sip/types";
 import { createSessionHandlers } from "./session.handlers";
 import type { SessionManager } from "./session.manager";
-import { clearSessionsState, removeSessionState } from "./session.state.projector";
+import { clearSessionsState, holdOtherSessions, removeSessionState } from "./session.state.projector";
 import { SessionLifecycle } from "./session.lifecycle";
 import type { MicRecoveryManager } from "../media/mic-recovery.manager";
 
@@ -57,6 +57,10 @@ export class SessionModule {
 
   setSession(sessionId: string, session: RTCSession) {
     this.deps.sessionManager.setSession(sessionId, session);
+  }
+
+  setPendingMedia(stream: MediaStream | null) {
+    this.deps.sessionManager.setPendingMedia(stream);
   }
 
   answerSession(sessionId: string, options: AnswerOptions = {}) {
@@ -119,6 +123,17 @@ export class SessionModule {
     return false;
   }
 
+  attendedTransferSession(sessionId: string, replaceSessionId: string): boolean {
+    const resolvedA = this.resolveExistingSessionId(sessionId);
+    const resolvedB = this.resolveExistingSessionId(replaceSessionId);
+    if (!resolvedA || !resolvedB) return false;
+    const sessionStateA = this.deps.state.getState().sessionsById[resolvedA];
+    if (sessionStateA?.status !== CallStatus.Active) return false;
+    const sessionB = this.deps.sessionManager.getSession(resolvedB);
+    if (!sessionB) return false;
+    return this.deps.sessionManager.attendedTransfer(resolvedA, sessionB);
+  }
+
   transferSession(sessionId: string, target: string, options?: ReferOptions) {
     const resolved = this.resolveExistingSessionId(sessionId);
     if (!resolved) return false;
@@ -179,10 +194,21 @@ export class SessionModule {
   }
 
   cleanupAllSessions() {
+    // Detach JsSIP event handlers before clearing the session map so that
+    // session.off() is called while sessions are still accessible (Fix 3).
+    for (const [sessionId] of this.sessionHandlers) {
+      const session = this.deps.sessionManager.getSession(sessionId);
+      if (session) this.detachSessionHandlers(sessionId, session);
+    }
+    this.lifecycle.cleanupAllCallStats();
     this.deps.sessionManager.cleanupAllSessions();
     this.deps.micRecovery.cleanupAll();
     this.sessionHandlers.clear();
     clearSessionsState(this.deps.state);
+  }
+
+  public cleanupSessionById(sessionId: string) {
+    this.cleanupSession(sessionId);
   }
 
   private attachSessionHandlers(sessionId: string, session: RTCSession) {
@@ -206,6 +232,7 @@ export class SessionModule {
   }
 
   private cleanupSession(sessionId: string, session?: RTCSession) {
+    this.lifecycle.cleanupCallStats(sessionId); // Fix 4: remove stats listeners
     const targetSession =
       session ??
       this.deps.sessionManager.getSession(sessionId) ??
@@ -230,6 +257,10 @@ export class SessionModule {
       detachSessionHandlers: () => this.cleanupSession(sessionId, session),
       enableMicrophoneRecovery: (confirmedSessionId) =>
         this.deps.micRecovery.enable(confirmedSessionId),
+      holdOtherActiveSessions: () =>
+        holdOtherSessions(this.deps.state, sessionId, (id) =>
+          this.deps.sessionManager.getRtc(id)?.hold()
+        ),
       iceCandidateReadyDelayMs: this.deps.getIceCandidateReadyDelayMs(),
       sessionId,
     });
@@ -257,5 +288,3 @@ export class SessionModule {
     return this.sessionExists(id) ? id : null;
   }
 }
-
-

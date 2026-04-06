@@ -26,6 +26,7 @@ export default function withSip<P extends object>(
         register: true,
         enableMicRecovery: true,
         iceCandidateReadyDelayMs: 3000,
+
       });
 
       return () => kernel.commands.disconnect();

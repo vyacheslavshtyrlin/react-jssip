@@ -56,9 +56,19 @@ export interface SipEventManager {
   ) => () => void;
 }
 
+export type MicDropPayload = {
+  sessionId: string;
+  trackLive: boolean;
+  senderLive: boolean;
+};
+
+export type SessionIceFailedPayload = {
+  sessionId: string;
+};
+
 export type JsSIPEventMap = {
   [K in JsSIPEventName]: JsSIPEventPayload<K>;
-};
+} & { micDrop: MicDropPayload; sessionIceFailed: SessionIceFailedPayload };
 
 export type SipCallOptions = CallOptions;
 export type SipSendMessageOptions = SendMessageOptions;
@@ -74,6 +84,12 @@ export type SipConfiguration = Omit<UAConfiguration, "password" | "uri"> & {
   micRecoveryMaxRetries?: number;
   maxSessionCount?: number;
   iceCandidateReadyDelayMs?: number;
+  reconnect?: {
+    enabled: boolean;
+    maxAttempts?: number;
+    delayMs?: number;
+    backoffMultiplier?: number;
+  };
 };
 
 export type {

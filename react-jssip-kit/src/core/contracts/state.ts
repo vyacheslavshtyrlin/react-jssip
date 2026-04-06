@@ -1,6 +1,7 @@
 export const SipStatus = {
   Disconnected: "disconnected",
   Connecting: "connecting",
+  Reconnecting: "reconnecting",
   Connected: "connected",
   Registered: "registered",
   Unregistered: "unregistered",
@@ -13,6 +14,7 @@ export const CallStatus = {
   Idle: "idle",
   Dialing: "dialing",
   Ringing: "ringing",
+  EarlyMedia: "earlyMedia",
   Active: "active",
   Hold: "hold",
 } as const;
@@ -28,6 +30,7 @@ export type SipSessionState = {
   to: string | null;
   muted: boolean;
   acceptedAt: number | null;
+  headers: Record<string, string>;
 };
 
 export interface SipState {

@@ -23,8 +23,9 @@ export function createSipKernel(): SipKernel {
   return {
     client,
     store: {
-      getState: () => client.state,
-      subscribe: (onStoreChange) => client.onChange(onStoreChange),
+      getState: () => client.stateStore.getState(),
+      subscribe: (onStoreChange) =>
+        client.stateStore.subscribeInternal(() => onStoreChange()),
     },
     commands: {
       connect: (uri: string, password: string, config: SipConfiguration) =>
@@ -58,6 +59,8 @@ export function createSipKernel(): SipKernel {
       ) => client.sendDTMFSession(sessionId, tones, options),
       transfer: (sessionId: string, target: string, options?: ReferOptions) =>
         client.transferSession(sessionId, target, options),
+      attendedTransfer: (sessionId: string, replaceSessionId: string) =>
+        client.attendedTransferSession(sessionId, replaceSessionId),
       sendInfo: (
         sessionId: string,
         contentType: string,
@@ -78,6 +81,8 @@ export function createSipKernel(): SipKernel {
       onUA: (event, handler) => eventManager.onUA(event, handler),
       onSession: (sessionId, event, handler) =>
         eventManager.onSession(sessionId, event, handler),
+      onMicDrop: (handler) => client.on("micDrop", handler),
+      onSessionIceFailed: (handler) => client.on("sessionIceFailed", handler),
     },
     eventManager,
     media,

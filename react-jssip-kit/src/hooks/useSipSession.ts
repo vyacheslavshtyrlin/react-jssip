@@ -1,9 +1,8 @@
 import type { SipSessionState } from "../core/contracts/state";
-import { useSipSelector } from "./useSipSelector";
+import { useSipInternalSelector } from "./useSipInternalSelector";
 
 export function useSipSession(sessionId?: string): SipSessionState | null {
-  return useSipSelector((state) => {
-    if (!sessionId) return null;
-    return state.sessions.find((session) => session.id === sessionId) ?? null;
-  });
+  return useSipInternalSelector((state) =>
+    sessionId ? (state.sessionsById[sessionId] ?? null) : null
+  );
 }

@@ -15,6 +15,16 @@ type SessionEntry = {
 
 export class SessionManager {
   private entries = new Map<string, SessionEntry>();
+  private pendingMedia: MediaStream | null = null;
+
+  /**
+   * Set media that will be consumed by the NEXT getOrCreateRtc call.
+   * Must be called before ua.call() because JsSIP emits newRTCSession
+   * synchronously inside ua.call(), before it returns the session reference.
+   */
+  setPendingMedia(stream: MediaStream | null) {
+    this.pendingMedia = stream;
+  }
 
   private stopMediaStream(stream?: MediaStream | null) {
     if (!stream) return;
@@ -26,10 +36,15 @@ export class SessionManager {
   getOrCreateRtc(sessionId: string, session?: RTCSession) {
     let entry = this.entries.get(sessionId);
     if (!entry) {
+      // Consume pendingMedia set before ua.call() — it must be applied here
+      // because JsSIP fires newRTCSession synchronously inside ua.call(),
+      // before ua.call() returns and the caller can set media externally.
+      const media = this.pendingMedia;
+      this.pendingMedia = null;
       entry = {
         rtc: new WebRTCSessionController(),
         session: null,
-        media: null,
+        media,
       };
       this.entries.set(sessionId, entry);
     }
@@ -143,5 +158,10 @@ export class SessionManager {
   transfer(sessionId: string, target: string, options?: ReferOptions) {
     const rtc = this.getRtc(sessionId);
     return rtc ? rtc.transfer(target, options) : false;
+  }
+
+  attendedTransfer(sessionId: string, replaceSession: RTCSession): boolean {
+    const rtc = this.getRtc(sessionId);
+    return rtc ? rtc.attendedTransfer(replaceSession) : false;
   }
 }
