@@ -8,11 +8,12 @@ export function useSessionIceFailed(
   const { events } = useSipKernel();
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+  const hasHandler = !!handler;
 
   useEffect(() => {
-    if (!handlerRef.current) return;
+    if (!hasHandler) return;
     return events.onSessionIceFailed((payload) =>
       handlerRef.current?.(payload)
     );
-  }, [events]);
+  }, [events, hasHandler]);
 }

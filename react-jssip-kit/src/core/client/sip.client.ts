@@ -7,7 +7,6 @@ import type {
   JsSIPEventMap,
   RenegotiateOptions,
   ReferOptions,
-  RTCSession,
   RTCSessionEvent,
   SendMessageOptions,
   SipConfiguration,

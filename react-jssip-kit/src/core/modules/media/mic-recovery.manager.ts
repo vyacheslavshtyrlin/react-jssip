@@ -128,7 +128,10 @@ export class MicRecoveryManager {
     const session = this.deps.getSession(sessionId);
     const pc: RTCPeerConnection | undefined = (session as any)?.connection;
     const onIceChange = () => {
-      const state = pc?.iceConnectionState;
+      // Read current PC at event time — re-INVITE may have replaced session.connection.
+      const currentPc = (this.deps.getSession(sessionId) as any)
+        ?.connection as RTCPeerConnection | undefined;
+      const state = currentPc?.iceConnectionState;
       if (state === "failed" || state === "disconnected") void tick();
     };
     pc?.addEventListener?.("iceconnectionstatechange", onIceChange);

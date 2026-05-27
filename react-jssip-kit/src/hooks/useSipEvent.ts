@@ -14,11 +14,12 @@ export function useSipEvent<K extends UAEventName>(
   const { events } = useSipKernel();
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+  const hasHandler = !!handler;
 
   useEffect(() => {
-    if (!handlerRef.current) return;
+    if (!hasHandler) return;
     return events.onUA(event, (...args) => handlerRef.current?.(...args));
-  }, [event, events]);
+  }, [event, events, hasHandler]);
 }
 
 export function useSipSessionEvent<K extends SessionEventName>(
@@ -29,11 +30,12 @@ export function useSipSessionEvent<K extends SessionEventName>(
   const { events } = useSipKernel();
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+  const hasHandler = !!handler;
 
   useEffect(() => {
-    if (!handlerRef.current) return;
+    if (!hasHandler) return;
     return events.onSession(sessionId, event, (...args) =>
       handlerRef.current?.(...args)
     );
-  }, [event, sessionId, events]);
+  }, [event, sessionId, events, hasHandler]);
 }
