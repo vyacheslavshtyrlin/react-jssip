@@ -8,7 +8,11 @@ export function withMicrophoneProvider<P extends object>(
   Component: React.ComponentType<P>
 ) {
   return function MicrophoneProviderHOC(props: P) {
-    const deviceManager = new DeviceManager();
+    const deviceManagerRef = useRef<DeviceManager | null>(null);
+    if (!deviceManagerRef.current) {
+      deviceManagerRef.current = new DeviceManager();
+    }
+    const deviceManager = deviceManagerRef.current;
 
     const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>(
       deviceManager.getMicrophones()
@@ -51,6 +55,8 @@ export function withMicrophoneProvider<P extends object>(
           onDeviceChange
         );
         deviceManager.emitter.removeEventListener("error", onError);
+        deviceManager.destroy();
+        deviceManagerRef.current = null;
 
         if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
       };

@@ -14,7 +14,7 @@ function Dialer() {
   const { user } = useUserData();
   const { sipStatus } = useSipState();
   return (
-    <Card className="w-sm gap-4 h-2xl flex flex-col mx-auto">
+    <Card className="w-sm gap-0 h-2xl flex flex-col mx-auto">
       <CardHeader className="flex  my-2 flex-row justify-between items-center">
         <div>
           <CardTitle>SIP USER</CardTitle>

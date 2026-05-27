@@ -14,3 +14,6 @@ dist/
 # Logs
 *.log
 yarn.lock
+
+# Local learning notes
+learning/

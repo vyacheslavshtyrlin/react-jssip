@@ -1,6 +1,5 @@
-﻿import React, { useRef } from "react";
-import { useSipSessions, useSipEvent, CallPlayer, useCallQuality } from "react-jssip-kit";
-import RingDialog from "@/components/ring-dialog";
+﻿import React, { useEffect, useRef } from "react";
+import { useSipSessions, CallPlayer } from "react-jssip-kit";
 
 const ringSound = "/sounds/ring.mp3";
 
@@ -11,34 +10,23 @@ export default function withSipEventsProvider<P extends object>(
     const { sessions } = useSipSessions();
     const audioRef = useRef<HTMLAudioElement>(null);
 
-    const playAudio = (src: string) => {
-      if (!audioRef.current) return;
-      audioRef.current.src = src;
-      audioRef.current.play();
-    };
-
-    useSipEvent("newRTCSession", (payload) => {
-      const sessionId =
-        (payload as any)?.session?.id ??
-        (payload as any)?.sessionId ??
-        (payload as any)?.data?.session?.id ??
-        (payload as any)?.data?.id;
-      const originator =
-        (payload as any)?.originator ?? (payload as any)?.data?.originator;
-      if (originator === "remote" && sessionId) {
-        playAudio(ringSound);
+    const seenIdsRef = useRef(new Set(sessions.map((s) => s.id)));
+    useEffect(() => {
+      for (const session of sessions) {
+        if (!seenIdsRef.current.has(session.id) && session.direction === "remote") {
+          if (audioRef.current) {
+            audioRef.current.src = ringSound;
+            audioRef.current.play();
+          }
+        }
       }
-    });
+      seenIdsRef.current = new Set(sessions.map((s) => s.id));
+    }, [sessions]);
 
     return (
       <>
         <audio playsInline ref={audioRef} />
-        <RingDialog />
-        {sessions.length === 0 ? (
-          <CallPlayer />
-        ) : (
-          sessions.map((s) => <CallPlayer key={s.id} sessionId={s.id} />)
-        )}
+        {sessions.map((s) => <CallPlayer key={s.id} sessionId={s.id} />)}
         <Component {...props} />
       </>
     );
