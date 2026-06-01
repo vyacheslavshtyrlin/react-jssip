@@ -126,15 +126,26 @@ export class MicRecoveryManager {
     void tick();
 
     const session = this.deps.getSession(sessionId);
-    const pc: RTCPeerConnection | undefined = (session as any)?.connection;
+    let trackedPc: RTCPeerConnection | undefined = (session as any)?.connection;
+
     const onIceChange = () => {
-      // Read current PC at event time — re-INVITE may have replaced session.connection.
-      const currentPc = (this.deps.getSession(sessionId) as any)
-        ?.connection as RTCPeerConnection | undefined;
-      const state = currentPc?.iceConnectionState;
+      const state = trackedPc?.iceConnectionState;
       if (state === "failed" || state === "disconnected") void tick();
     };
-    pc?.addEventListener?.("iceconnectionstatechange", onIceChange);
+
+    const attachIceListener = (newPc: RTCPeerConnection | undefined) => {
+      if (trackedPc === newPc) return;
+      trackedPc?.removeEventListener?.("iceconnectionstatechange", onIceChange);
+      trackedPc = newPc;
+      newPc?.addEventListener?.("iceconnectionstatechange", onIceChange);
+    };
+
+    const onPeerConnection = (data: { peerconnection: RTCPeerConnection }) => {
+      attachIceListener(data.peerconnection);
+    };
+
+    (session as any)?.on?.("peerconnection", onPeerConnection);
+    trackedPc?.addEventListener?.("iceconnectionstatechange", onIceChange);
 
     // Immediate dead-track check — bypasses warmup.
     // Catches tracks that died at or just before confirmed.
@@ -156,7 +167,8 @@ export class MicRecoveryManager {
     const stop = () => {
       stopped = true;
       clearInterval(timer);
-      pc?.removeEventListener?.("iceconnectionstatechange", onIceChange);
+      trackedPc?.removeEventListener?.("iceconnectionstatechange", onIceChange);
+      (session as any)?.off?.("peerconnection", onPeerConnection);
       initialTrack?.removeEventListener?.("ended", onTrackEnded);
     };
     this.active.set(sessionId, { stop });

@@ -62,8 +62,8 @@ import type {
   TerminateOptions,
   RTCSessionEventMap,
   SipConfiguration,
-  SipKernel,
 } from "./core/public-types";
+import type { SipKernel } from "./core/kernel/types";
 
 export type {
   SipState,

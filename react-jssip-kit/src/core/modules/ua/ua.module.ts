@@ -48,7 +48,9 @@ export class UaModule {
     this.detachHandlers();
     this.uaHandlerKeys.forEach((event) => {
       const handler = this.uaHandlers[event];
-      if (handler) ua.on(event, handler);
+      // cast: our UAEventMap values are conditional types identical to jssip's
+      // at runtime, but TypeScript cannot prove equivalence for generic K
+      if (handler) ua.on(event, handler as never);
     });
   }
 
@@ -57,7 +59,7 @@ export class UaModule {
     if (!ua) return;
     this.uaHandlerKeys.forEach((event) => {
       const handler = this.uaHandlers[event];
-      if (handler) ua.off(event, handler);
+      if (handler) ua.off(event, handler as never);
     });
   }
 }

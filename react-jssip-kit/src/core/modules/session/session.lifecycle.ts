@@ -180,6 +180,7 @@ export class SessionLifecycle {
             pc,
             { trackState: track.readyState }
           );
+          return false;
         }
         return true;
       },
