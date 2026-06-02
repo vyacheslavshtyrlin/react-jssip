@@ -48,9 +48,7 @@ export class UaModule {
     this.detachHandlers();
     this.uaHandlerKeys.forEach((event) => {
       const handler = this.uaHandlers[event];
-      // cast: our UAEventMap values are conditional types identical to jssip's
-      // at runtime, but TypeScript cannot prove equivalence for generic K
-      if (handler) ua.on(event, handler as never);
+      if (handler) ua.on(event, handler);
     });
   }
 
@@ -59,7 +57,10 @@ export class UaModule {
     if (!ua) return;
     this.uaHandlerKeys.forEach((event) => {
       const handler = this.uaHandlers[event];
-      if (handler) ua.off(event, handler as never);
+      // jssip 3.13.x UA.d.ts only declares `on`; removeListener is
+      // available at runtime via EventEmitter but not typed in the declaration
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (handler) (ua as any).removeListener(event, handler);
     });
   }
 }

@@ -3,6 +3,12 @@ import { SipStatus } from "../../contracts/state";
 import type { StateAdapter } from "../../contracts/state";
 import type { JsSIPEventMap } from "../../sip/types";
 import type { JssipEventEmitter } from "../event/event-target.emitter";
+import type {
+  IncomingMessageEvent,
+  IncomingOptionsEvent,
+  OutgoingMessageEvent,
+  OutgoingOptionsEvent,
+} from "jssip/lib/UA";
 
 type Deps = {
   emitter: JssipEventEmitter<JsSIPEventMap>;
@@ -12,51 +18,44 @@ type Deps = {
   onConnected: () => void;
 };
 
-// Typed emit helper — handler `e` is unknown because UAEventMap uses
-// conditional types that TypeScript cannot use for contextual inference.
-// The cast is safe: jssip fires exactly the event shape the emitter expects.
-const emit = <K extends keyof JsSIPEventMap>(
-  emitter: JssipEventEmitter<JsSIPEventMap>,
-  event: K,
-  e: unknown
-) => emitter.emit(event, e as JsSIPEventMap[K]);
-
 export function createUAHandlers(deps: Deps): Partial<UAEventMap> {
   const { emitter, state } = deps;
 
   return {
-    connecting: (e: unknown) => {
-      emit(emitter, "connecting", e);
+    connecting: (e) => {
+      emitter.emit("connecting", e);
       state.batchSet({ sipStatus: SipStatus.Connecting });
     },
-    connected: (e: unknown) => {
-      emit(emitter, "connected", e);
+    connected: (e) => {
+      emitter.emit("connected", e);
       state.batchSet({ sipStatus: SipStatus.Connected });
       deps.onConnected();
     },
-    disconnected: (e: unknown) => {
-      emit(emitter, "disconnected", e);
+    disconnected: (e) => {
+      emitter.emit("disconnected", e);
       deps.onDisconnected();
     },
-    registered: (e: unknown) => {
-      emit(emitter, "registered", e);
+    registered: (e) => {
+      emitter.emit("registered", e);
       state.batchSet({ sipStatus: SipStatus.Registered, error: null });
       deps.onConnected();
     },
-    unregistered: (e: unknown) => {
-      emit(emitter, "unregistered", e);
+    unregistered: (e) => {
+      emitter.emit("unregistered", e);
       state.batchSet({ sipStatus: SipStatus.Unregistered });
     },
-    registrationFailed: (e: unknown) => {
-      emit(emitter, "registrationFailed", e);
+    registrationFailed: (e) => {
+      emitter.emit("registrationFailed", e);
       state.batchSet({
         sipStatus: SipStatus.RegistrationFailed,
-        error: (e as { cause?: string } | undefined)?.cause ?? "registration failed",
+        error: e?.cause || "registration failed",
       });
     },
     newRTCSession: deps.onNewRTCSession,
-    newMessage: (e: unknown) => emit(emitter, "newMessage", e),
-    sipEvent: (e: unknown) => emit(emitter, "sipEvent", e),
-    newOptions: (e: unknown) => emit(emitter, "newOptions", e),
-  } as Partial<UAEventMap>;
+    newMessage: (e: IncomingMessageEvent | OutgoingMessageEvent) =>
+      emitter.emit("newMessage", e),
+    sipEvent: (e: any) => emitter.emit("sipEvent", e),
+    newOptions: (e: IncomingOptionsEvent | OutgoingOptionsEvent) =>
+      emitter.emit("newOptions", e),
+  };
 }

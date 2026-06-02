@@ -18,8 +18,8 @@ function getSessionId(session: RTCSession): string {
 export function createSipEventManager(client: SipClient): SipEventManager {
   return {
     onUA(event, handler) {
-      // cast: _Payload<_UAListener<K>> is equivalent to JsSIPEventMap[K] for
-      // every concrete K, but TypeScript cannot prove it for a generic K
+      // For generic K TypeScript cannot reduce JsSIPEventMap[K] to
+      // UAEventPayload<K>; the types are identical at every concrete K.
       return client.on(event, handler as never);
     },
     onSession(sessionId, event, handler) {
@@ -32,7 +32,7 @@ export function createSipEventManager(client: SipClient): SipEventManager {
 
       const detach = () => {
         if (!attachedSession) return;
-        attachedSession.off(event, wrapped as never);
+        attachedSession.off(event, wrapped);
         attachedSession = null;
       };
 
@@ -44,10 +44,7 @@ export function createSipEventManager(client: SipClient): SipEventManager {
 
         detach();
         attachedSession = session;
-        // cast: our _SessionListener<K> is structurally identical to
-        // jssip's RTCSessionEventMap[K] but TypeScript cannot prove it
-        // for a generic K because _SessionListener is a conditional type
-        attachedSession.on(event, wrapped as never);
+        attachedSession.on(event, wrapped);
       };
 
       const offNewSession = client.on("newRTCSession", (payload) => {
