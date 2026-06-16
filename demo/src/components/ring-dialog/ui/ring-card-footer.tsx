@@ -5,7 +5,6 @@ import type { SipSessionState } from "react-jssip-kit";
 import { CallStatus, useSipActions } from "react-jssip-kit";
 import { Mic, MicOff, PhoneCall, PhoneOff, Smartphone } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { DTMF_TRANSPORT } from "jssip/src/Constants";
 
 export const RingCardFooter = ({ session }: { session: SipSessionState }) => {
   const [dtmfOpen, setDtmfOpen] = useState(false);
@@ -22,7 +21,7 @@ export const RingCardFooter = ({ session }: { session: SipSessionState }) => {
       <div className="w-full my-2 flex flex-row gap-4 justify-around sm:justify-around">
         <Button
           onClick={() => answer(session.id)}
-          disabled={callDirection !== "local"}
+          disabled={callDirection !== "remote"}
           size="lg"
           className="bg-green-500 animate-pulse rounded-full"
         >
@@ -59,11 +58,7 @@ export const RingCardFooter = ({ session }: { session: SipSessionState }) => {
         <DialogContent className="w-80">
           <div className="rounded-xl border bg-background p-3 shadow-xl">
             <Dialpad
-              onNumberClick={(num) =>
-                sendDTMF(session.id, num, {
-                  transportType: DTMF_TRANSPORT.RFC2833,
-                })
-              }
+              onNumberClick={(num) => sendDTMF(session.id, num)}
             />
           </div>
         </DialogContent>

@@ -11,6 +11,7 @@ export const callStatusVariants = cva(
         ringing: "bg-blue-500 animate-pulse text-white",
         active: "bg-green-500 text-white",
         dialing: "bg-yellow-500 animate-pulse text-white",
+        earlyMedia: "bg-yellow-500 animate-pulse text-white",
         hold: "bg-orange-500 text-white",
       },
     },
@@ -22,6 +23,7 @@ export const callStatusVariants = cva(
 
 const CallStatusRu: Record<CallStatus, string> = {
   idle: "...",
+  earlyMedia: "Early media",
   dialing: "Набор",
   ringing: "Дозвон",
   active: "Активен",

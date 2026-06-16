@@ -1,21 +1,24 @@
 import { Dialog, DialogContent, DialogFooter } from "../ui/dialog";
 import { RingCardContent } from "./ui/ring-card-contnet";
 import { RingCardFooter } from "./ui/ring-card-footer";
-import { useSipSessions } from "react-jssip-kit";
+import { CallStatus, useSipSessions } from "react-jssip-kit";
 
 export default function RingDialog() {
   const { sessions } = useSipSessions();
 
-  const activeSessions = sessions.length > 0 ? sessions : [];
-  const hasSessions = activeSessions.length > 0;
+  const ringingSessions = sessions.filter(
+    (session) =>
+      session.direction === "remote" && session.status === CallStatus.Ringing,
+  );
+  const hasSessions = ringingSessions.length > 0;
 
   return (
-    <Dialog open={Boolean(activeSessions.length)}>
+    <Dialog open={hasSessions}>
       <DialogContent className="w-full max-w-2xl space-y-4 bg-background">
         {!hasSessions ? (
           <RingCardContent session={null} />
         ) : (
-          activeSessions.map((session) => {
+          ringingSessions.map((session) => {
             return (
               <div
                 key={session.id}

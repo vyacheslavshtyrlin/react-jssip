@@ -1,4 +1,4 @@
-import type { InternalSipState, SipState } from "../contracts/state";
+import type { InternalSipState } from "../contracts/state";
 import type { SipClient } from "../client";
 import type {
   AnswerOptions,

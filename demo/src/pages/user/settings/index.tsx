@@ -56,7 +56,6 @@ const UserSettingsPage = () => {
               value="account"
             >
               <UserForm
-                okText="Сохранить"
                 values={user}
                 onSubmit={(data) => updateUser(data)}
               />

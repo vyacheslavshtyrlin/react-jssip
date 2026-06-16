@@ -20,7 +20,6 @@ export const useCallAction = () => {
     sendDTMF,
     setSessionMedia,
     reinvite,
-    attendedTransfer,
   } = useSipActions();
 
   useMicDrop(async ({ sessionId, trackLive }) => {

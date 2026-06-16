@@ -1,7 +1,5 @@
 import {
   useCallQuality,
-  useCallTimer,
-  useSipMessages,
   type SipSessionState,
 } from "react-jssip-kit";
 import { PhoneIncoming, PhoneOutgoing, UserRound } from "lucide-react";
@@ -14,8 +12,6 @@ type Props = {
 export const RingCardContent = ({ session }: Props) => {
   const call = useCallQuality(session?.id);
   console.log(call);
-
-  const time = useCallTimer(session?.id);
 
   if (!session) {
     return (

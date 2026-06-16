@@ -7,6 +7,7 @@ const sipStatusVariants = cva("", {
     status: {
       disconnected: "bg-gray-400",
       connecting: "bg-yellow-400 animate-pulse",
+      reconnecting: "bg-yellow-400 animate-pulse",
       connected: "bg-blue-400",
       registered: "bg-green-400",
       unregistered: "bg-gray-400",
@@ -19,6 +20,7 @@ const sipStatusVariants = cva("", {
 });
 
 const SipStatusRu: Record<SipStatus, string> = {
+  reconnecting: "Reconnecting...",
   disconnected: "Отключено",
   connecting: "Подключение...",
   connected: "Подключен",

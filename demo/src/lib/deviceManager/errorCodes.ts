@@ -1,9 +1,12 @@
-export enum DeviceErrorCode {
-  PermissionDenied = "permission_denied",
-  NotFound = "not_found",
-  Unknown = "unknown",
-  NotSupported = "not_supported",
-}
+export const DeviceErrorCode = {
+  PermissionDenied: "permission_denied",
+  NotFound: "not_found",
+  Unknown: "unknown",
+  NotSupported: "not_supported",
+} as const;
+
+export type DeviceErrorCode =
+  (typeof DeviceErrorCode)[keyof typeof DeviceErrorCode];
 
 export const DeviceErrorMessages: Record<DeviceErrorCode, string> = {
   [DeviceErrorCode.PermissionDenied]: "Microphone permission denied by browser.",
@@ -12,6 +15,6 @@ export const DeviceErrorMessages: Record<DeviceErrorCode, string> = {
   [DeviceErrorCode.NotSupported]: "Microphone API not supported in this browser.",
 };
 
-export function getDeviceErrorMessage(code: DeviceErrorCode, params?: any) {
+export function getDeviceErrorMessage(code: DeviceErrorCode) {
   return DeviceErrorMessages[code] ?? DeviceErrorMessages[DeviceErrorCode.Unknown];
 }

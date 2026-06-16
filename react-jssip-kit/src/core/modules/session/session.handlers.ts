@@ -20,7 +20,7 @@ import type {
   OutgoingEvent,
   OutgoingInfoEvent,
   PeerConnectionEvent,
-} from "jssip/src/RTCSession";
+} from "jssip/lib/RTCSession";
 
 type Deps = {
   emitter: JssipEventEmitter<JsSIPEventMap>;
@@ -65,6 +65,15 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
     detachSessionHandlers();
     rtc.cleanup();
     removeSessionState(state, sessionId);
+  };
+  const setPeerConnectionError = (eventName: string, error: unknown) => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Peer connection error";
+    state.setState({ error: `${eventName}: ${message}` });
   };
   if (typeof iceCandidateReadyDelayMs === "number") {
     sipDebugLogger.logIceReadyConfig(sessionId, iceCandidateReadyDelayMs);
@@ -200,7 +209,7 @@ export function createSessionHandlers(deps: Deps): Partial<RTCSessionEventMap> {
     },
     "peerconnection:setremotedescriptionfailed": (e) => {
       emitter.emit("peerconnection:setremotedescriptionfailed", e);
-      cleanupSession();
+      setPeerConnectionError("peerconnection:setremotedescriptionfailed", e);
     },
     peerconnection: (e: PeerConnectionEvent) => {
       emitter.emit("peerconnection", e);
